@@ -137,6 +137,7 @@ def main():
 
     iter_no = 0
     best_acc = 0.0
+    best_iter_no = 0
     for epoch in range(train_hps['num_epochs']):
         for bidx, batch in enumerate(train_loader):
             sentence = batch['input_ids'].cuda()
@@ -164,6 +165,8 @@ def main():
                     model_path = os.path.join(ckptdir, "model_best.p")
                     save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, model_path)
                     best_acc = metrics['acc']
+                    best_iter_no = iter_no
+                print("Best acc. till now:", best_acc, best_iter_no)
                 
 
             iter_no += 1
