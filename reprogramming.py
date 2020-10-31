@@ -9,17 +9,26 @@ import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 import os
 import data_utils
+from torchvision import transforms
+from PIL import Image
+from torchvision.transforms import ToTensor, Resize, Normalize
 
 
 train_hps = {
     'num_epochs' : 50,
-    'lr' : 2e-3,
+    'lr' : 0.0015,
     'batch_size' : 4,
     'evaluate_every' : 500
 }
 
+def unnormalize_image(tensor, mean, std):
+    mean = torch.tensor(mean)[:,None,None].cuda()
+    std = torch.tensor(std)[:,None,None].cuda()
+#     print(tensor.size(), mean.size(), std.size())
+    return tensor * std + mean
+
 class ReprogrammingFuntion(nn.Module):
-    def __init__(self, vocab_size, img_patch_size = 16, img_size = 384):
+    def __init__(self, vocab_size, img_patch_size = 16, img_size = 384, img_path=None, alpha=0.2):
         super(ReprogrammingFuntion, self).__init__()
 
         assert img_size % img_patch_size == 0
@@ -28,6 +37,18 @@ class ReprogrammingFuntion(nn.Module):
         self.token_embedding = nn.Embedding(vocab_size, img_patch_size * img_patch_size * 3)
         self.num_patches_row = int(img_size/img_patch_size)
         self.num_patches = self.num_patches_row * self.num_patches_row
+        self.base_image = None
+        if img_path is not None:
+            image = Image.open(img_path)
+            transform=transforms.Compose([
+                                  Resize((384, 384)),
+                                  ToTensor(),
+                                Normalize((0.5,0.5,0.5),(0.5,0.5,0.5)),
+                                ])
+
+            image = transform(image) 
+            self.base_image = torch.tensor(image, requires_grad=False).cuda()
+            self.alpha = alpha
 
 
     def forward(self, sentence_batch):
@@ -36,6 +57,7 @@ class ReprogrammingFuntion(nn.Module):
         sentence_embedding = sentence_embedding.view(_N, _L, 3, self.img_patch_size, self.img_patch_size)
 
         reprogrammed_image = torch.zeros(_N, 3, self.img_size, self.img_size).cuda()
+        
         for patch_idx in range(self.num_patches):
             i_start = int(patch_idx / self.num_patches_row) * 16
             j_start = (patch_idx % self.num_patches_row) * 16
@@ -47,7 +69,10 @@ class ReprogrammingFuntion(nn.Module):
                 # adding the padding embedding all the way till the end
                 reprogrammed_image[:,:,i_start:i_end,j_start:j_end] = sentence_embedding[:,_L-1]
 
-        
+        if self.base_image is not None:
+            base_image_batch = self.base_image[None].repeat((_N, 1, 1, 1))
+            reprogrammed_image = base_image_batch + self.alpha * reprogrammed_image
+
         return reprogrammed_image
 
 
@@ -60,7 +85,8 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer, iter_no, max_bat
         labels = batch['label'].cuda()
         programmed_img = reprogrammer(sentence)
         if bidx == 0:
-            tb_writer.add_image("ProgrammedImage", programmed_img[0], iter_no)
+            vis_image = unnormalize_image(programmed_img[0], (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            tb_writer.add_image("ProgrammedImage", vis_image, iter_no)
         logits = vision_model(programmed_img)
         prediction = torch.argmax(logits, dim = 1)
         correct = torch.sum(prediction == labels)
@@ -91,6 +117,8 @@ def main():
     p.add_argument('--img_patch_size', type=int, default = 16)
     p.add_argument('--img_size', type=int, default = 384)
     p.add_argument('--vision_model', type=str, default = 'vit_base_patch16_384')
+    p.add_argument('--base_image_path', type=str, default = None)
+    p.add_argument('--pert_alpha', type=float, default = 0.2)
     args = p.parse_args()
 
     dataset_sentence_key_mapping = data_utils.dataset_sentence_key_mapping
@@ -118,7 +146,9 @@ def main():
     vision_model.cuda()
 
     vocab_size = len(tokenizer.get_vocab())
-    reprogrammer = ReprogrammingFuntion(vocab_size, args.img_patch_size, args.img_size)
+    reprogrammer = ReprogrammingFuntion(vocab_size, args.img_patch_size, 
+        args.img_size, 
+        img_path = args.base_image_path, alpha = args.pert_alpha)
     reprogrammer.cuda()
     
     optimizer = optim.Adam(reprogrammer.parameters(), lr=train_hps['lr'])
