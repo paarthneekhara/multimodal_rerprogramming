@@ -76,10 +76,11 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer, iter_no, max_bat
     }
 
 
-def save_checkpoint(model, learning_rate, iteration, filepath):
+def save_checkpoint(model, learning_rate, acc, iteration, filepath):
     print("Saving model state at iteration {} to {}".format(iteration, filepath))
     torch.save({'iteration': iteration,
                 'state_dict': model.state_dict(),
+                'acc' : acc,
                 'learning_rate': learning_rate}, filepath)
 
 def main():
@@ -135,6 +136,7 @@ def main():
     tb_writer = SummaryWriter(logdir = logdir)
 
     iter_no = 0
+    best_acc = 0.0
     for epoch in range(train_hps['num_epochs']):
         for bidx, batch in enumerate(train_loader):
             sentence = batch['input_ids'].cuda()
@@ -157,7 +159,12 @@ def main():
                 tb_writer.add_scalar('val_acc', metrics['acc'], iter_no)
                 print(metrics)
                 model_path = os.path.join(ckptdir, "model.p")
-                save_checkpoint(reprogrammer, train_hps['lr'], iter_no, model_path)
+                save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, model_path)
+                if metrics['acc'] > best_acc:
+                    model_path = os.path.join(ckptdir, "model_best.p")
+                    save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, model_path)
+                    best_acc = metrics['acc']
+                
 
             iter_no += 1
 
