@@ -17,8 +17,6 @@ class UniRNN(nn.Module):
             sentence_batch = sentence_batch[:,:max_sentence_length]
 
         token_embedding = self.embedding(sentence_batch)
-        token_embedding = F.tanh(token_embedding)
-
         lstm_out, _ = self.lstm(token_embedding)
         lstm_out = lstm_out.contiguous()
 
@@ -42,8 +40,6 @@ class BiRNN(nn.Module):
             sentence_batch = sentence_batch[:,:max_sentence_length]
 
         token_embedding = self.embedding(sentence_batch)
-        token_embedding = F.tanh(token_embedding)
-
         lstm_out, _ = self.lstm(token_embedding)
         lstm_out = lstm_out.contiguous()
         lstm_out = lstm_out[:,-1,:] + lstm_out[:,0,:]
@@ -71,7 +67,6 @@ class CnnTextClassifier(nn.Module):
             sentence_batch = sentence_batch[:,:max_sentence_length]
 
         token_embedding = self.embedding(sentence_batch)
-
         # Apply a convolution + max pool layer for each window size
         x = torch.unsqueeze(token_embedding, 1)       # [B, C, T, E] Add a channel dim.
         xs = []

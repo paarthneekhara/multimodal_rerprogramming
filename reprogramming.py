@@ -16,7 +16,8 @@ import json
 import numpy as np
 
 train_hps = {
-    'num_epochs' : 25,
+    'num_epochs' : 100,
+    'max_iterations' : 300000,
     'lr' : 0.001,
     'batch_size' : 4,
     'validate_every' : 500, # validates on small subset of val set
@@ -267,7 +268,8 @@ def main():
                 print("Ran full evaluation!")
 
             iter_no += 1
-
+            if iter_no > train_hps['max_iterations']:
+                break
 
 if __name__ == '__main__':
     main()
