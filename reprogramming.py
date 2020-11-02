@@ -230,12 +230,14 @@ def main():
                     iter_no)
                 log_fn = os.path.join(logdir, "best_metrics.json")
                 metrics['iter_no'] = best_iter_no
+                metrics['base_image_path'] = args.base_image_path
+                metrics['alpha'] = args.pert_alpha
                 with open(log_fn, "w") as f:
                     f.write(json.dumps(metrics))
                 prev_best_eval_iter = best_iter_no
                 reprogrammer, _ = load_checkpoint(backup_ckpt_path, reprogrammer)
                 print("Run full evaluation!")
-                
+
             iter_no += 1
 
 
