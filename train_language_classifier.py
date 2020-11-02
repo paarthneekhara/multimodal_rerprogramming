@@ -14,7 +14,8 @@ import numpy as np
 import language_models
 
 train_hps = {
-    'num_epochs' : 25,
+    'num_epochs' : 100,
+    'max_iterations' : 300000,
     'lr' : 0.0001,
     'batch_size' : 32,
     'validate_every' : 500, # validates on small subset of val set
@@ -188,13 +189,17 @@ def main():
                     iter_no)
                 log_fn = os.path.join(logdir, "best_metrics.json")
                 metrics['iter_no'] = best_iter_no
+                metrics['train_hps'] = train_hps
                 with open(log_fn, "w") as f:
                     f.write(json.dumps(metrics))
                 prev_best_eval_iter = best_iter_no
                 model, _ = load_checkpoint(backup_ckpt_path, model)
                 print("Ran full evaluation!")
 
+            
             iter_no += 1
+            if iter_no > train_hps['max_iterations']:
+                break
 
 if __name__ == '__main__':
     main()
