@@ -5,21 +5,48 @@ import torch.nn.functional as F
 
 class UniRNN(nn.Module):
     def __init__(self, vocab_size, embedding_size, hidden_size, target_size):
-        super(uniRNN, self).__init__()
+        super(UniRNN, self).__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_size)
         self.lstm = nn.LSTM(embedding_size, hidden_size, batch_first = True)
         self.output_layer = nn.Linear(hidden_size, target_size)
         
 
-    def forward(self, sentence_batch):
+    def forward(self, sentence_batch, max_sentence_length = None):
         # sentence_batch = Variable(sentence_batch)
-        
+        if max_sentence_length is not None:
+            sentence_batch = sentence_batch[:,:max_sentence_length]
+
         token_embedding = self.embedding(sentence_batch)
         token_embedding = F.tanh(token_embedding)
 
         lstm_out, _ = self.lstm(token_embedding)
         lstm_out = lstm_out.contiguous()
+
         lstm_out = lstm_out[:,-1,:]
+        
+        logits = self.output_layer(lstm_out)
+
+        return logits
+
+class BiRNN(nn.Module):
+    def __init__(self, vocab_size, embedding_size, hidden_size, target_size):
+        super(BiRNN, self).__init__()
+        self.embedding = nn.Embedding(vocab_size, embedding_size)
+        self.lstm = nn.LSTM(embedding_size, hidden_size, batch_first = True, bidirectional=True)
+        self.output_layer = nn.Linear(2*hidden_size, target_size)
+        
+
+    def forward(self, sentence_batch, max_sentence_length = None):
+        # sentence_batch = Variable(sentence_batch)
+        if max_sentence_length is not None:
+            sentence_batch = sentence_batch[:,:max_sentence_length]
+
+        token_embedding = self.embedding(sentence_batch)
+        token_embedding = F.tanh(token_embedding)
+
+        lstm_out, _ = self.lstm(token_embedding)
+        lstm_out = lstm_out.contiguous()
+        lstm_out = lstm_out[:,-1,:] + lstm_out[:,0,:]
         
         logits = self.output_layer(lstm_out)
 
@@ -38,8 +65,11 @@ class CnnTextClassifier(nn.Module):
 
         self.fc = nn.Linear(hidden_size * len(window_sizes), target_size)
 
-    def forward(self, sentence_batch):
+    def forward(self, sentence_batch, max_sentence_length = None):
         
+        if max_sentence_length is not None:
+            sentence_batch = sentence_batch[:,:max_sentence_length]
+
         token_embedding = self.embedding(sentence_batch)
 
         # Apply a convolution + max pool layer for each window size
@@ -59,16 +89,18 @@ class CnnTextClassifier(nn.Module):
         return logits
 
 def get_model(model_type, vocab_size, embedding_size, hidden_size, target_size, cuda = True):
-	assert model_type in ["uni_rnn", "cnn"]
-	if model_type == "uni_rnn":
-		model = UniRNN(vocab_size, embedding_size, hidden_size, target_size)
-	elif model_type == "cnn":
-		model = CnnTextClassifier(vocab_size, embedding_size, hidden_size, target_size)
-	else:
-		raise Exception("Not Implemented")
-	
-	if cuda:
-		model = model.cuda()
+    assert model_type in ["uni_rnn", "bi_rnn", "cnn"]
+    if model_type == "uni_rnn":
+        model = UniRNN(vocab_size, embedding_size, hidden_size, target_size)
+    elif model_type == "bi_rnn":
+        model = BiRNN(vocab_size, embedding_size, hidden_size, target_size)
+    elif model_type == "cnn":
+        model = CnnTextClassifier(vocab_size, embedding_size, hidden_size, target_size)
+    else:
+        raise Exception("Not Implemented")
+    
+    if cuda:
+        model = model.cuda()
 
-	return model
+    return model
 
