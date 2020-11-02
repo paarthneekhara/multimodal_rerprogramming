@@ -22,3 +22,8 @@ def label_mapper(e, text_dataset):
         pass
 
     return e
+
+dataset_num_classes = {
+    'imdb' : 2,
+    'emotion' : 6
+}
