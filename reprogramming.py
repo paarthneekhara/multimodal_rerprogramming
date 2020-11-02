@@ -13,6 +13,7 @@ from torchvision import transforms
 from PIL import Image
 from torchvision.transforms import ToTensor, Resize, Normalize
 import json
+import numpy as np
 
 train_hps = {
     'num_epochs' : 25,
@@ -245,7 +246,7 @@ def main():
                     best_iter_no = iter_no
                 print("Best acc. till now:", best_acc, best_iter_no)
 
-            if iter_no % train_hps['evaluate_every'] == 0 and prev_best_eval_iter != best_iter_no:
+            if (iter_no + 1) % train_hps['evaluate_every'] == 0 and prev_best_eval_iter != best_iter_no:
                 # Run evaluation on whole test set using the new best checkpoint (if found)
                 print("Running full evaluation!")
                 backup_ckpt_path = os.path.join(ckptdir, "model_temp.p")
