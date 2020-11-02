@@ -15,8 +15,8 @@ import language_models
 
 train_hps = {
     'num_epochs' : 25,
-    'lr' : 0.001,
-    'batch_size' : 4,
+    'lr' : 0.0001,
+    'batch_size' : 32,
     'validate_every' : 500, # validates on small subset of val set
     'evaluate_every' : 5000, # evaluates on full test set using best ckpt
     'embedding_size' : 256,
@@ -30,8 +30,10 @@ def evaluate(dataloader, model, iter_no, max_batches = None):
     model.eval()
     for bidx, batch in enumerate(dataloader):
         sentence = batch['input_ids'].cuda()
+        attention_mask = batch['attention_mask'].cuda()
+        max_sentence_length = torch.max(torch.sum(attention_mask, dim=1)).item()
         labels = batch['label'].cuda()
-        logits = model(sentence)
+        logits = model(sentence, max_sentence_length = max_sentence_length)
         prediction = torch.argmax(logits, dim = 1)
         correct = torch.sum(prediction == labels)
         total_correct += correct.item()
@@ -53,6 +55,19 @@ def save_checkpoint(model, learning_rate, acc, iteration, filepath):
                 'acc' : acc,
                 'learning_rate': learning_rate}, filepath)
 
+# def find_max_sentence_length(train_dataset, val_dataset):
+#     max_length = 0
+#     for row in train_dataset:
+#         row_length = torch.sum(row['attention_mask']).item()
+#         if row_length > max_length:
+#             max_length = row_length
+#     for row in val_dataset:
+#         row_length = torch.sum(row['attention_mask']).item()
+#         if row_length > max_length:
+#             max_length = row_length
+#     return max_length
+
+
 def load_checkpoint(checkpoint_path, model):
     assert os.path.isfile(checkpoint_path)
     print("Loading checkpoint '{}'".format(checkpoint_path))
@@ -68,7 +83,7 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument('--text_dataset', type=str)
     p.add_argument('--language_model', type=str)
-    p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers")
+    p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers/ClassificationModels")
     
     args = p.parse_args()
 
@@ -81,16 +96,19 @@ def main():
     text_key = dataset_sentence_key_mapping[args.text_dataset]
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
-    train_dataset.set_format(type='torch', columns=['input_ids', 'label'])
+    train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
 
     val_dataset_raw = datasets.load_dataset(args.text_dataset, split="test")
     val_dataset = val_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     val_dataset = val_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
-    val_dataset.set_format(type='torch', columns=['input_ids', 'label'])
+    val_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
 
-
+    # max_sentence_length = find_max_sentence_length(train_dataset, val_dataset)
+    # print("Max sentence length", max_sentence_length)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_hps['batch_size'], shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=train_hps['batch_size'], shuffle=True)
+
+    
 
     vocab_size = len(tokenizer.get_vocab())
 
@@ -130,8 +148,10 @@ def main():
     for epoch in range(train_hps['num_epochs']):
         for bidx, batch in enumerate(train_loader):
             sentence = batch['input_ids'].cuda()
+            attention_mask = batch['attention_mask'].cuda()
+            max_sentence_length = torch.max(torch.sum(attention_mask, dim=1)).item()
             labels = batch['label'].cuda()
-            logits = model(sentence)
+            logits = model(sentence, max_sentence_length = max_sentence_length)
             loss = loss_criterion(logits, labels)
             optimizer.zero_grad()
             loss.backward()

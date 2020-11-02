@@ -154,7 +154,7 @@ def main():
     p = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument('--text_dataset', type=str)
-    p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers")
+    p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers/ReprogrammingModels")
     p.add_argument('--img_patch_size', type=int, default = 16)
     p.add_argument('--img_size', type=int, default = 384)
     p.add_argument('--vision_model', type=str, default = 'vit_base_patch16_384')
