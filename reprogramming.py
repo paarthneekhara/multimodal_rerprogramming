@@ -19,7 +19,9 @@ train_hps = {
     'lr' : 0.001,
     'batch_size' : 4,
     'validate_every' : 500, # validates on small subset of val set
-    'evaluate_every' : 5000 # evaluates on full test set using best ckpt
+    'evaluate_every' : 5000, # evaluates on full test set using best ckpt
+    'img_mean' : (0.5, 0.5, 0.5),
+    'img_std' : (0.5, 0.5, 0.5)
 }
 
 def unnormalize_image(tensor, mean, std):
@@ -93,13 +95,22 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer, iter_no, max_bat
     total_correct = 0.0
     total_examples = 0.0
     reprogrammer.eval()
+    l_inf_norms = []
     for bidx, batch in enumerate(dataloader):
         sentence = batch['input_ids'].cuda()
         labels = batch['label'].cuda()
         programmed_img = reprogrammer(sentence)
         if bidx == 0:
-            vis_image = unnormalize_image(programmed_img[0], (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            vis_image = unnormalize_image(programmed_img[0], train_hps['img_mean'], train_hps['img_std'])
             tb_writer.add_image("ProgrammedImage", vis_image, iter_no)
+        if reprogrammer.base_image is not None:
+            _N = sentence.size(0)
+            base_image_batch = reprogrammer.base_image[None].repeat((_N, 1, 1, 1))
+            pert_normalized = programmed_img - base_image_batch
+            pert_unnormalized = unnormalize_image(pert_normalized, train_hps['img_mean'], train_hps['img_std'])
+            _l_inf_norm = torch.max(torch.abs(pert_unnormalized)).item()
+            l_inf_norms.append(_l_inf_norm)
+
         logits = vision_model(programmed_img)
         prediction = torch.argmax(logits, dim = 1)
         correct = torch.sum(prediction == labels)
@@ -109,9 +120,15 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer, iter_no, max_bat
         if (max_batches is not None) and bidx > max_batches:
             break
     acc = total_correct/total_examples
+    mean_linf_norm = None
+    if len(l_inf_norms) > 0:
+        mean_linf_norm = float(np.mean(l_inf_norms))
+
     reprogrammer.train()
+    
     return {
-        'acc' : acc
+        'acc' : acc,
+        'mean_linf_norm' : mean_linf_norm
     }
 
 
