@@ -12,19 +12,22 @@ import data_utils
 from torchvision import transforms
 from PIL import Image
 from torchvision.transforms import ToTensor, Resize, Normalize
-
+import json
 
 train_hps = {
-    'num_epochs' : 50,
+    'num_epochs' : 25,
     'lr' : 0.0015,
     'batch_size' : 4,
-    'evaluate_every' : 500
+    'validate_every' : 500, # validates on small subset of val set
+    'evaluate_every' : 5000 # evaluates on full test set using best ckpt
 }
 
 def unnormalize_image(tensor, mean, std):
+    """
+    tensor: Normalize image of shape (nc, h, w)
+    """
     mean = torch.tensor(mean)[:,None,None].cuda()
     std = torch.tensor(std)[:,None,None].cuda()
-#     print(tensor.size(), mean.size(), std.size())
     return tensor * std + mean
 
 class ReprogrammingFuntion(nn.Module):
@@ -109,6 +112,16 @@ def save_checkpoint(model, learning_rate, acc, iteration, filepath):
                 'acc' : acc,
                 'learning_rate': learning_rate}, filepath)
 
+def load_checkpoint(checkpoint_path, model):
+    assert os.path.isfile(checkpoint_path)
+    print("Loading checkpoint '{}'".format(checkpoint_path))
+    checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
+    model.load_state_dict(checkpoint_dict['state_dict'])
+    iteration = checkpoint_dict['iteration']
+    print("Loaded checkpoint '{}' from iteration {}" .format(
+        checkpoint_path, iteration))
+    return model, iteration
+
 def main():
     p = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -154,7 +167,12 @@ def main():
     optimizer = optim.Adam(reprogrammer.parameters(), lr=train_hps['lr'])
     loss_criterion = nn.CrossEntropyLoss()
 
-    exp_name = "dataset_{}_lr_{}".format(args.text_dataset, train_hps['lr'])
+    base_image_name = None
+    if args.base_image_path is not None:
+        base_image_name = args.base_image_path.split("/")[-1].split(".")[0]
+    exp_name = "ds_{}_lr_{}_bimg_{}_vm_{}_alpha_{}".format(
+        args.text_dataset, train_hps['lr'], base_image_name, args.vision_model, args.pert_alpha
+    )
     logdir = os.path.join(args.logdir, exp_name)
     ckptdir = os.path.join(logdir, "CKPTS")
     if not os.path.exists(logdir):
@@ -168,6 +186,8 @@ def main():
     iter_no = 0
     best_acc = 0.0
     best_iter_no = 0
+    best_model_path = None
+    prev_best_eval_iter = None
     for epoch in range(train_hps['num_epochs']):
         for bidx, batch in enumerate(train_loader):
             sentence = batch['input_ids'].cuda()
@@ -182,7 +202,7 @@ def main():
                 print (iter_no, "Loss:", loss.item())
                 tb_writer.add_scalar('train_loss', loss, iter_no)
 
-            if iter_no % train_hps['evaluate_every'] == 0:
+            if iter_no % train_hps['validate_every'] == 0:
                 print("Evaluating")
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
@@ -191,14 +211,31 @@ def main():
                 print(metrics)
                 model_path = os.path.join(ckptdir, "model.p")
                 save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, model_path)
-                if metrics['acc'] > best_acc:
-                    model_path = os.path.join(ckptdir, "model_best.p")
-                    save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, model_path)
+                if metrics['acc'] >= best_acc:
+                    best_model_path = os.path.join(ckptdir, "model_best.p")
+                    save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, best_model_path)
                     best_acc = metrics['acc']
                     best_iter_no = iter_no
                 print("Best acc. till now:", best_acc, best_iter_no)
-                
 
+            if iter_no % train_hps['evaluate_every'] == 0 and prev_best_eval_iter != best_iter_no:
+                # Run evaluation on whole test set using the new best checkpoint (if found)
+                print("Running full evaluation!")
+                backup_ckpt_path = os.path.join(ckptdir, "model_temp.p")
+                save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, backup_ckpt_path)
+
+                reprogrammer, _ = load_checkpoint(best_model_path, reprogrammer)
+                metrics = evaluate(val_loader, vision_model, 
+                    reprogrammer, tb_writer, 
+                    iter_no)
+                log_fn = os.path.join(logdir, "best_metrics.json")
+                metrics['iter_no'] = best_iter_no
+                with open(log_fn, "w") as f:
+                    f.write(json.dumps(metrics))
+                prev_best_eval_iter = best_iter_no
+                reprogrammer, _ = load_checkpoint(backup_ckpt_path, reprogrammer)
+                print("Run full evaluation!")
+                
             iter_no += 1
 
 
