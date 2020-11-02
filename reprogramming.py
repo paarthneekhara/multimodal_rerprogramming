@@ -16,7 +16,7 @@ import json
 
 train_hps = {
     'num_epochs' : 25,
-    'lr' : 0.0015,
+    'lr' : 0.001,
     'batch_size' : 4,
     'validate_every' : 500, # validates on small subset of val set
     'evaluate_every' : 5000 # evaluates on full test set using best ckpt
@@ -24,11 +24,19 @@ train_hps = {
 
 def unnormalize_image(tensor, mean, std):
     """
-    tensor: Normalize image of shape (nc, h, w)
+    tensor: Normalized image of shape (nc, h, w)
     """
     mean = torch.tensor(mean)[:,None,None].cuda()
     std = torch.tensor(std)[:,None,None].cuda()
     return tensor * std + mean
+
+def normalize_image(tensor, mean, std):
+    """
+    tensor: Unnormalized image of shape (nc, h, w)
+    """
+    mean = torch.tensor(mean)[:,None,None].cuda()
+    std = torch.tensor(std)[:,None,None].cuda()
+    return (tensor - mean) / std
 
 class ReprogrammingFuntion(nn.Module):
     def __init__(self, vocab_size, img_patch_size = 16, img_size = 384, img_path=None, alpha=0.2):
@@ -75,7 +83,9 @@ class ReprogrammingFuntion(nn.Module):
         if self.base_image is not None:
             base_image_batch = self.base_image[None].repeat((_N, 1, 1, 1))
             reprogrammed_image = base_image_batch + self.alpha * reprogrammed_image
-
+        
+        reprogrammed_image = torch.clamp(reprogrammed_image, -1.0, 1.0) # because image is normalized
+        
         return reprogrammed_image
 
 
@@ -236,11 +246,9 @@ def main():
                     f.write(json.dumps(metrics))
                 prev_best_eval_iter = best_iter_no
                 reprogrammer, _ = load_checkpoint(backup_ckpt_path, reprogrammer)
-                print("Run full evaluation!")
+                print("Ran full evaluation!")
 
             iter_no += 1
-
-
 
 
 if __name__ == '__main__':
