@@ -164,6 +164,7 @@ def main():
     p.add_argument('--base_image_path', type=str, default = None)
     p.add_argument('--pert_alpha', type=float, default = 0.2)
     p.add_argument('--lr', type=float, default = 0.0001)
+    p.add_argument('--resume_training', type=int, default = 0)
     args = p.parse_args()
 
     train_hps['lr'] = args.lr
@@ -226,6 +227,13 @@ def main():
     best_iter_no = 0
     best_model_path = None
     prev_best_eval_iter = None
+
+    if args.resume_training == 1:
+        resume_model_path = os.path.join(ckptdir, "model.p")
+        if not os.path.exists(resume_model_path):
+            raise Exception("model not found")
+        reprogrammer, iter_no = load_checkpoint(resume_model_path, reprogrammer)
+
     for epoch in range(train_hps['num_epochs']):
         for bidx, batch in enumerate(train_loader):
             sentence = batch['input_ids'].cuda()
