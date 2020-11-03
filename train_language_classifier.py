@@ -85,7 +85,7 @@ def main():
     p.add_argument('--text_dataset', type=str)
     p.add_argument('--language_model', type=str)
     p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers/ClassificationModels")
-    
+    p.add_argument('--resume_training', type=int, default = 0)
     args = p.parse_args()
 
     dataset_sentence_key_mapping = data_utils.dataset_sentence_key_mapping
@@ -146,6 +146,13 @@ def main():
     best_iter_no = 0
     best_model_path = None
     prev_best_eval_iter = None
+
+    if args.resume_training == 1:
+        resume_model_path = os.path.join(ckptdir, "model.p")
+        if not os.path.exists(resume_model_path):
+            raise Exception("model not found")
+        model, iter_no = load_checkpoint(resume_model_path, model)
+
     for epoch in range(train_hps['num_epochs']):
         for bidx, batch in enumerate(train_loader):
             sentence = batch['input_ids'].cuda()
