@@ -18,7 +18,7 @@ import numpy as np
 train_hps = {
     'num_epochs' : 100,
     'max_iterations' : 300000,
-    'lr' : 0.001,
+    'lr' : 0.001, # overridden by args
     'batch_size' : 4,
     'validate_every' : 500, # validates on small subset of val set
     'evaluate_every' : 5000 # evaluates on full test set using best ckpt
@@ -163,7 +163,10 @@ def main():
     p.add_argument('--vision_model', type=str, default = 'vit_base_patch16_384')
     p.add_argument('--base_image_path', type=str, default = None)
     p.add_argument('--pert_alpha', type=float, default = 0.2)
+    p.add_argument('--lr', type=float, default = 0.0001)
     args = p.parse_args()
+
+    train_hps['lr'] = args.lr
 
     dataset_sentence_key_mapping = data_utils.dataset_sentence_key_mapping
 
