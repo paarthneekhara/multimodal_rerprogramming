@@ -56,7 +56,7 @@ class ReprogrammingFuntion(nn.Module):
         if img_path is not None:
             image = Image.open(img_path)
             transform=transforms.Compose([
-                                  Resize((384, 384)),
+                                  Resize((img_size, img_size)),
                                   ToTensor(),
                                 Normalize(img_mean,img_std),
                                 ])
@@ -74,10 +74,10 @@ class ReprogrammingFuntion(nn.Module):
         reprogrammed_image = torch.zeros(_N, 3, self.img_size, self.img_size).cuda()
         
         for patch_idx in range(self.num_patches):
-            i_start = int(patch_idx / self.num_patches_row) * 16
-            j_start = (patch_idx % self.num_patches_row) * 16
-            i_end = i_start + 16
-            j_end = j_start + 16
+            i_start = int(patch_idx / self.num_patches_row) * self.img_patch_size
+            j_start = (patch_idx % self.num_patches_row) * self.img_patch_size
+            i_end = i_start + self.img_patch_size
+            j_end = j_start + self.img_patch_size
             if patch_idx < _L:
                 reprogrammed_image[:,:,i_start:i_end,j_start:j_end] = sentence_embedding[:,patch_idx]
             else:
