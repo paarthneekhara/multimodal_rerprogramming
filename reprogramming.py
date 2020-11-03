@@ -21,9 +21,7 @@ train_hps = {
     'lr' : 0.001,
     'batch_size' : 4,
     'validate_every' : 500, # validates on small subset of val set
-    'evaluate_every' : 5000, # evaluates on full test set using best ckpt
-    'img_mean' : (0.5, 0.5, 0.5),
-    'img_std' : (0.5, 0.5, 0.5)
+    'evaluate_every' : 5000 # evaluates on full test set using best ckpt
 }
 
 def unnormalize_image(tensor, mean, std):
@@ -43,7 +41,9 @@ def normalize_image(tensor, mean, std):
     return (tensor - mean) / std
 
 class ReprogrammingFuntion(nn.Module):
-    def __init__(self, vocab_size, img_patch_size = 16, img_size = 384, img_path=None, alpha=0.2):
+    def __init__(self, vocab_size, img_patch_size = 16, img_size = 384, 
+        img_path=None, alpha=0.2, 
+        img_mean=(0.5, 0.5, 0.5), img_std=(0.5, 0.5, 0.5)):
         super(ReprogrammingFuntion, self).__init__()
 
         assert img_size % img_patch_size == 0
@@ -58,7 +58,7 @@ class ReprogrammingFuntion(nn.Module):
             transform=transforms.Compose([
                                   Resize((384, 384)),
                                   ToTensor(),
-                                Normalize((0.5,0.5,0.5),(0.5,0.5,0.5)),
+                                Normalize(img_mean,img_std),
                                 ])
 
             image = transform(image) 
@@ -93,7 +93,9 @@ class ReprogrammingFuntion(nn.Module):
         return reprogrammed_image
 
 
-def evaluate(dataloader, vision_model, reprogrammer, tb_writer, iter_no, max_batches = None):
+def evaluate(dataloader, vision_model, reprogrammer, tb_writer, 
+    iter_no, max_batches = None, 
+    img_mean=(0.5, 0.5, 0.5), img_std=(0.5, 0.5, 0.5)):
     total_correct = 0.0
     total_examples = 0.0
     reprogrammer.eval()
@@ -103,13 +105,13 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer, iter_no, max_bat
         labels = batch['label'].cuda()
         programmed_img = reprogrammer(sentence)
         if bidx == 0:
-            vis_image = unnormalize_image(programmed_img[0], train_hps['img_mean'], train_hps['img_std'])
+            vis_image = unnormalize_image(programmed_img[0], img_mean, img_std)
             tb_writer.add_image("ProgrammedImage", vis_image, iter_no)
         if reprogrammer.base_image is not None:
             _N = sentence.size(0)
             base_image_batch = reprogrammer.base_image[None].repeat((_N, 1, 1, 1))
             pert_normalized = programmed_img - base_image_batch
-            pert_unnormalized = unnormalize_image(pert_normalized, train_hps['img_mean'], train_hps['img_std'])
+            pert_unnormalized = unnormalize_image(pert_normalized, img_mean, img_std)
             _l_inf_norm = torch.max(torch.abs(pert_unnormalized)).item()
             l_inf_norms.append(_l_inf_norm)
 
@@ -188,9 +190,13 @@ def main():
     vision_model.cuda()
 
     vocab_size = len(tokenizer.get_vocab())
+
+    img_mean = data_utils.image_model_configs[args.vision_model]['mean']
+    img_std = data_utils.image_model_configs[args.vision_model]['std']
+
     reprogrammer = ReprogrammingFuntion(vocab_size, args.img_patch_size, 
         args.img_size, 
-        img_path = args.base_image_path, alpha = args.pert_alpha)
+        img_path = args.base_image_path, alpha = args.pert_alpha, img_mean = img_mean, img_std = img_std)
     reprogrammer.cuda()
     
     optimizer = optim.Adam(reprogrammer.parameters(), lr=train_hps['lr'])
@@ -235,7 +241,7 @@ def main():
                 print("Evaluating")
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
-                    iter_no, max_batches = 100)
+                    iter_no, max_batches = 100, img_mean = img_mean, img_std = img_std)
                 tb_writer.add_scalar('val_acc', metrics['acc'], iter_no)
                 print(metrics)
                 model_path = os.path.join(ckptdir, "model.p")
@@ -256,11 +262,12 @@ def main():
                 reprogrammer, _ = load_checkpoint(best_model_path, reprogrammer)
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
-                    iter_no)
+                    iter_no, img_mean = img_mean, img_std = img_std)
                 log_fn = os.path.join(logdir, "best_metrics.json")
                 metrics['iter_no'] = best_iter_no
                 metrics['base_image_path'] = args.base_image_path
                 metrics['alpha'] = args.pert_alpha
+                metrics['train_hps'] = train_hps
                 with open(log_fn, "w") as f:
                     f.write(json.dumps(metrics))
                 prev_best_eval_iter = best_iter_no

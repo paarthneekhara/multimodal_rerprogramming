@@ -14,6 +14,17 @@ dataset_num_classes = {
     'yelp_polarity' : 2
 }
 
+image_model_configs = {
+    'vit_base_patch16_384' : {
+        'mean' : (0.5, 0.5, 0.5),
+        'std' : (0.5, 0.5, 0.5)
+    },
+    'resnet50' : {
+        'mean' : (0.485, 0.456, 0.406),
+        'std' : (0.229, 0.224, 0.225)
+    }
+}
+
 def label_mapper(e, text_dataset):
     if text_dataset == 'emotion':
         # print("In mapper", e)
