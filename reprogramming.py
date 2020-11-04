@@ -22,7 +22,8 @@ train_hps = {
     'lr' : 0.001, # overridden by args
     'batch_size' : 4,
     'validate_every' : 500, # validates on small subset of val set
-    'evaluate_every' : 5000 # evaluates on full test set using best ckpt
+    'evaluate_every' : 5000, # evaluates on full test set using best ckpt
+    'label_reduction' : 'max' # overridden by args
 }
 
 def unnormalize_image(tensor, mean, std):
@@ -45,10 +46,18 @@ def get_mapped_logits(logits, class_mapping):
     """
     logits : Tensor of shape (batch_size, 1000) # imagenet class logits
     class_mapping: class_mapping[i] = list of image net labels for text class i
+    reduction : max or mean
     """
+    reduction = train_hps['label_reduction']
     mapped_logits = []
     for class_no in range(len(class_mapping)):
-        class_logits = torch.mean(logits[:,class_mapping[class_no]], dim = 1) # batch size
+        if reduction == "max":
+            class_logits = torch.max(logits[:,class_mapping[class_no]], dim = 1) # batch size
+        elif reduction == "mean":
+            class_logits = torch.mean(logits[:,class_mapping[class_no]], dim = 1) # batch size
+        else:
+            raise NotImplentedException()
+
         mapped_logits.append(class_logits)
     return torch.stack(mapped_logits, dim = 1)
 
@@ -212,6 +221,7 @@ def main():
     p.add_argument('--img_size', type=int, default = 384)
     p.add_argument('--vision_model', type=str, default = 'vit_base_patch16_384')
     p.add_argument('--base_image_path', type=str, default = None)
+    p.add_argument('--label_reduction', type=str, default = 'max')
     p.add_argument('--pert_alpha', type=float, default = 0.2)
     p.add_argument('--lr', type=float, default = 0.001)
     p.add_argument('--resume_training', type=int, default = 0)
@@ -219,6 +229,7 @@ def main():
     args = p.parse_args()
 
     train_hps['lr'] = args.lr
+    train_hps['label_reduction'] = args.label_reduction
 
     dataset_sentence_key_mapping = data_utils.dataset_sentence_key_mapping
 
@@ -264,8 +275,9 @@ def main():
     base_image_name = None
     if args.base_image_path is not None:
         base_image_name = args.base_image_path.split("/")[-1].split(".")[0]
-    exp_name = "ds_{}_lr_{}_bimg_{}_vm_{}_alpha_{}_m_label_{}".format(
-        args.text_dataset, train_hps['lr'], base_image_name, args.vision_model, args.pert_alpha, args.m_per_class
+    exp_name = "ds_{}_lr_{}_bimg_{}_vm_{}_alpha_{}_m_label_{}_{}".format(
+        args.text_dataset, train_hps['lr'], base_image_name, 
+        args.vision_model, args.pert_alpha, args.m_per_class, args.label_reduction
     )
     logdir = os.path.join(args.logdir, exp_name)
     ckptdir = os.path.join(logdir, "CKPTS")
