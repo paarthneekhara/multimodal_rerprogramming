@@ -52,7 +52,7 @@ def get_mapped_logits(logits, class_mapping):
     mapped_logits = []
     for class_no in range(len(class_mapping)):
         if reduction == "max":
-            class_logits = torch.max(logits[:,class_mapping[class_no]], dim = 1) # batch size
+            class_logits, _ = torch.max(logits[:,class_mapping[class_no]], dim = 1) # batch size
         elif reduction == "mean":
             class_logits = torch.mean(logits[:,class_mapping[class_no]], dim = 1) # batch size
         else:
