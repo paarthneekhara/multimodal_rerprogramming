@@ -72,8 +72,9 @@ def create_label_mapping(n_classes, m_per_class, image_net_labels = None):
 def get_imagenet_label_list(vision_model, base_image, img_size):
     if base_image is None:
         torch.manual_seed(42)
-        base_image = 2 * torch.rand(1, 3, img_size, img_size).cuda() - 1.0
-    logits = vision_model(base_image)[0]
+        base_image = 2 * torch.rand(3, img_size, img_size).cuda() - 1.0
+
+    logits = vision_model(base_image[None])[0]
     label_sort = torch.argsort(logits)
     label_list = label_sort.detach().cpu().numpy().tolist()
 
