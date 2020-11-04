@@ -14,6 +14,7 @@ from PIL import Image
 from torchvision.transforms import ToTensor, Resize, Normalize
 import json
 import numpy as np
+import pprint
 
 train_hps = {
     'num_epochs' : 100,
@@ -39,6 +40,45 @@ def normalize_image(tensor, mean, std):
     mean = torch.tensor(mean)[:,None,None].cuda()
     std = torch.tensor(std)[:,None,None].cuda()
     return (tensor - mean) / std
+
+def get_mapped_logits(logits, class_mapping):
+    """
+    logits : Tensor of shape (batch_size, 1000) # imagenet class logits
+    class_mapping: class_mapping[i] = list of image net labels for text class i
+    """
+    mapped_logits = []
+    for class_no in range(len(class_mapping)):
+        class_logits = torch.mean(logits[:,class_mapping[class_no]], dim = 1) # batch size
+        mapped_logits.append(class_logits)
+    return torch.stack(mapped_logits, dim = 1)
+
+def create_label_mapping(n_classes, m_per_class, image_net_labels = None):
+    """
+    n_classes: No. of classes in text dataset
+    m_per_class: Number of imagenet labels to be mapped to each text class
+    """
+    if image_net_labels is None:
+        image_net_labels = range(1000)
+
+    class_mapping = [[] for i in range(n_classes)]
+
+    idx = 0
+    for _m in range(m_per_class):
+        for _class_no in range(n_classes):
+            class_mapping[_class_no].append(image_net_labels[idx])
+            idx += 1
+    return class_mapping
+
+def get_imagenet_label_list(vision_model, base_image, img_size):
+    if base_image is None:
+        torch.manual_seed(42)
+        base_image = 2 * torch.rand(1, 3, img_size, img_size).cuda() - 1.0
+    logits = vision_model(base_image)[0]
+    label_sort = torch.argsort(logits)
+    label_list = label_sort.detach().cpu().numpy().tolist()
+
+    return label_list
+
 
 class ReprogrammingFuntion(nn.Module):
     def __init__(self, vocab_size, img_patch_size = 16, img_size = 384, 
@@ -94,8 +134,9 @@ class ReprogrammingFuntion(nn.Module):
 
 
 def evaluate(dataloader, vision_model, reprogrammer, tb_writer, 
-    iter_no, max_batches = None, 
+    iter_no, class_mapping, max_batches = None, 
     img_mean=(0.5, 0.5, 0.5), img_std=(0.5, 0.5, 0.5)):
+    
     total_correct = 0.0
     total_examples = 0.0
     reprogrammer.eval()
@@ -116,7 +157,8 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer,
             l_inf_norms.append(_l_inf_norm)
 
         logits = vision_model(programmed_img)
-        prediction = torch.argmax(logits, dim = 1)
+        mapped_logits = get_mapped_logits(logits, class_mapping)
+        prediction = torch.argmax(mapped_logits, dim = 1)
         correct = torch.sum(prediction == labels)
         total_correct += correct.item()
         total_examples += int(sentence.size(0))
@@ -136,11 +178,13 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer,
     }
 
 
-def save_checkpoint(model, learning_rate, acc, iteration, filepath):
+def save_checkpoint(model, learning_rate, acc, iteration, image_net_labels, class_mapping, filepath):
     print("Saving model state at iteration {} to {}".format(iteration, filepath))
     torch.save({'iteration': iteration,
                 'state_dict': model.state_dict(),
                 'acc' : acc,
+                'image_net_labels' : image_net_labels,
+                'class_mapping' : class_mapping,
                 'learning_rate': learning_rate}, filepath)
 
 def load_checkpoint(checkpoint_path, model):
@@ -149,9 +193,14 @@ def load_checkpoint(checkpoint_path, model):
     checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
     model.load_state_dict(checkpoint_dict['state_dict'])
     iteration = checkpoint_dict['iteration']
+
+    image_net_labels = None
+    if 'image_net_labels' in checkpoint_dict:
+        image_net_labels = checkpoint_dict['image_net_labels']
+
     print("Loaded checkpoint '{}' from iteration {}" .format(
         checkpoint_path, iteration))
-    return model, iteration
+    return model, iteration, image_net_labels
 
 def main():
     p = argparse.ArgumentParser(
@@ -163,8 +212,9 @@ def main():
     p.add_argument('--vision_model', type=str, default = 'vit_base_patch16_384')
     p.add_argument('--base_image_path', type=str, default = None)
     p.add_argument('--pert_alpha', type=float, default = 0.2)
-    p.add_argument('--lr', type=float, default = 0.0001)
+    p.add_argument('--lr', type=float, default = 0.001)
     p.add_argument('--resume_training', type=int, default = 0)
+    p.add_argument('--m_per_class', type=int, default = 1)
     args = p.parse_args()
 
     train_hps['lr'] = args.lr
@@ -198,19 +248,23 @@ def main():
     img_mean = data_utils.image_model_configs[args.vision_model]['mean']
     img_std = data_utils.image_model_configs[args.vision_model]['std']
 
+    n_classes = data_utils.dataset_num_classes[args.text_dataset]
+    
+
     reprogrammer = ReprogrammingFuntion(vocab_size, args.img_patch_size, 
         args.img_size, 
         img_path = args.base_image_path, alpha = args.pert_alpha, img_mean = img_mean, img_std = img_std)
     reprogrammer.cuda()
-    
+    image_net_labels = get_imagenet_label_list(vision_model, reprogrammer.base_image, args.img_size)
+    print("Imagenet Label Ordering..", image_net_labels[:20])
     optimizer = optim.Adam(reprogrammer.parameters(), lr=train_hps['lr'])
     loss_criterion = nn.CrossEntropyLoss()
 
     base_image_name = None
     if args.base_image_path is not None:
         base_image_name = args.base_image_path.split("/")[-1].split(".")[0]
-    exp_name = "ds_{}_lr_{}_bimg_{}_vm_{}_alpha_{}".format(
-        args.text_dataset, train_hps['lr'], base_image_name, args.vision_model, args.pert_alpha
+    exp_name = "ds_{}_lr_{}_bimg_{}_vm_{}_alpha_{}_m_label_{}".format(
+        args.text_dataset, train_hps['lr'], base_image_name, args.vision_model, args.pert_alpha, args.m_per_class
     )
     logdir = os.path.join(args.logdir, exp_name)
     ckptdir = os.path.join(logdir, "CKPTS")
@@ -230,9 +284,15 @@ def main():
 
     if args.resume_training == 1:
         resume_model_path = os.path.join(ckptdir, "model.p")
+        print("Resuming from ckpt", resume_model_path)
         if not os.path.exists(resume_model_path):
             raise Exception("model not found")
-        reprogrammer, iter_no = load_checkpoint(resume_model_path, reprogrammer)
+        reprogrammer, iter_no, image_net_labels = load_checkpoint(resume_model_path, reprogrammer)
+
+
+    class_mapping = create_label_mapping(n_classes, args.m_per_class, image_net_labels)
+    print("Class Mapping")
+    pprint.pprint(class_mapping)
 
     for epoch in range(train_hps['num_epochs']):
         for bidx, batch in enumerate(train_loader):
@@ -240,7 +300,8 @@ def main():
             labels = batch['label'].cuda()
             programmed_img = reprogrammer(sentence)
             logits = vision_model(programmed_img)
-            loss = loss_criterion(logits, labels)
+            mapped_logits = get_mapped_logits(logits, class_mapping)
+            loss = loss_criterion(mapped_logits, labels)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -252,14 +313,14 @@ def main():
                 print("Evaluating")
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
-                    iter_no, max_batches = 100, img_mean = img_mean, img_std = img_std)
+                    iter_no, class_mapping, max_batches = 100, img_mean = img_mean, img_std = img_std)
                 tb_writer.add_scalar('val_acc', metrics['acc'], iter_no)
                 print(metrics)
                 model_path = os.path.join(ckptdir, "model.p")
-                save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, model_path)
+                save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, image_net_labels, class_mapping, model_path)
                 if metrics['acc'] >= best_acc:
                     best_model_path = os.path.join(ckptdir, "model_best.p")
-                    save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, best_model_path)
+                    save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, image_net_labels, class_mapping, best_model_path)
                     best_acc = metrics['acc']
                     best_iter_no = iter_no
                 print("Best acc. till now:", best_acc, best_iter_no)
@@ -268,12 +329,12 @@ def main():
                 # Run evaluation on whole test set using the new best checkpoint (if found)
                 print("Running full evaluation!")
                 backup_ckpt_path = os.path.join(ckptdir, "model_temp.p")
-                save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, backup_ckpt_path)
+                save_checkpoint(reprogrammer, train_hps['lr'], metrics['acc'], iter_no, image_net_labels, class_mapping, backup_ckpt_path)
 
-                reprogrammer, _ = load_checkpoint(best_model_path, reprogrammer)
+                reprogrammer, _, _ = load_checkpoint(best_model_path, reprogrammer)
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
-                    iter_no, img_mean = img_mean, img_std = img_std)
+                    iter_no, class_mapping, img_mean = img_mean, img_std = img_std)
                 log_fn = os.path.join(logdir, "best_metrics.json")
                 metrics['iter_no'] = best_iter_no
                 metrics['base_image_path'] = args.base_image_path
@@ -282,7 +343,7 @@ def main():
                 with open(log_fn, "w") as f:
                     f.write(json.dumps(metrics))
                 prev_best_eval_iter = best_iter_no
-                reprogrammer, _ = load_checkpoint(backup_ckpt_path, reprogrammer)
+                reprogrammer, _, _ = load_checkpoint(backup_ckpt_path, reprogrammer)
                 print("Ran full evaluation!")
 
             iter_no += 1
