@@ -26,20 +26,22 @@ train_hps = {
     'label_reduction' : 'max' # overridden by args
 }
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 def unnormalize_image(tensor, mean, std):
     """
     tensor: Normalized image of shape (nc, h, w)
     """
-    mean = torch.tensor(mean)[:,None,None].cuda()
-    std = torch.tensor(std)[:,None,None].cuda()
+    mean = torch.tensor(mean)[:,None,None].to(device)
+    std = torch.tensor(std)[:,None,None].to(device)
     return tensor * std + mean
 
 def normalize_image(tensor, mean, std):
     """
     tensor: Unnormalized image of shape (nc, h, w)
     """
-    mean = torch.tensor(mean)[:,None,None].cuda()
-    std = torch.tensor(std)[:,None,None].cuda()
+    mean = torch.tensor(mean)[:,None,None].to(device)
+    std = torch.tensor(std)[:,None,None].to(device)
     return (tensor - mean) / std
 
 def get_mapped_logits(logits, class_mapping):
@@ -81,7 +83,7 @@ def create_label_mapping(n_classes, m_per_class, image_net_labels = None):
 def get_imagenet_label_list(vision_model, base_image, img_size):
     if base_image is None:
         torch.manual_seed(42)
-        base_image = 2 * torch.rand(3, img_size, img_size).cuda() - 1.0
+        base_image = 2 * torch.rand(3, img_size, img_size).to(device) - 1.0
 
     logits = vision_model(base_image[None])[0]
     label_sort = torch.argsort(logits)
@@ -112,7 +114,7 @@ class ReprogrammingFuntion(nn.Module):
                                 ])
 
             image = transform(image) 
-            self.base_image = torch.tensor(image, requires_grad=False).cuda()
+            self.base_image = torch.tensor(image, requires_grad=False).to(device)
             self.alpha = alpha
 
 
@@ -121,7 +123,7 @@ class ReprogrammingFuntion(nn.Module):
         _N, _L, _ = sentence_embedding.size()
         sentence_embedding = sentence_embedding.view(_N, _L, 3, self.img_patch_size, self.img_patch_size)
 
-        reprogrammed_image = torch.zeros(_N, 3, self.img_size, self.img_size).cuda()
+        reprogrammed_image = torch.zeros(_N, 3, self.img_size, self.img_size).to(device)
         
         for patch_idx in range(self.num_patches):
             i_start = int(patch_idx / self.num_patches_row) * self.img_patch_size
@@ -152,8 +154,8 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer,
     reprogrammer.eval()
     l_inf_norms = []
     for bidx, batch in enumerate(dataloader):
-        sentence = batch['input_ids'].cuda()
-        labels = batch['label'].cuda()
+        sentence = batch['input_ids'].to(device)
+        labels = batch['label'].to(device)
         programmed_img = reprogrammer(sentence)
         if bidx == 0:
             vis_image = unnormalize_image(programmed_img[0], img_mean, img_std)
@@ -217,6 +219,7 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument('--text_dataset', type=str)
     p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers/ReprogrammingModels")
+    p.add_argument('--cache_dir', type=str, default = "/data2/paarth/HuggingFaceDatasets")
     p.add_argument('--img_patch_size', type=int, default = 16)
     p.add_argument('--img_size', type=int, default = 384)
     p.add_argument('--vision_model', type=str, default = 'vit_base_patch16_384')
@@ -235,14 +238,14 @@ def main():
 
     assert args.text_dataset in dataset_sentence_key_mapping
 
-    train_dataset_raw = datasets.load_dataset(args.text_dataset, split="train")
+    train_dataset_raw = datasets.load_dataset(args.text_dataset, split="train", cache_dir = args.cache_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
     text_key = dataset_sentence_key_mapping[args.text_dataset]
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     train_dataset.set_format(type='torch', columns=['input_ids', 'label'])
 
-    val_dataset_raw = datasets.load_dataset(args.text_dataset, split="test")
+    val_dataset_raw = datasets.load_dataset(args.text_dataset, split="test", cache_dir = args.cache_dir)
     val_dataset = val_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     val_dataset = val_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     val_dataset.set_format(type='torch', columns=['input_ids', 'label'])
@@ -253,7 +256,7 @@ def main():
 
     vision_model = timm.create_model(args.vision_model, pretrained=True)
     vision_model.eval()
-    vision_model.cuda()
+    vision_model.to(device)
 
     vocab_size = len(tokenizer.get_vocab())
 
@@ -266,7 +269,7 @@ def main():
     reprogrammer = ReprogrammingFuntion(vocab_size, args.img_patch_size, 
         args.img_size, 
         img_path = args.base_image_path, alpha = args.pert_alpha, img_mean = img_mean, img_std = img_std)
-    reprogrammer.cuda()
+    reprogrammer.to(device)
     image_net_labels = get_imagenet_label_list(vision_model, reprogrammer.base_image, args.img_size)
     print("Imagenet Label Ordering..", image_net_labels[:20])
     optimizer = optim.Adam(reprogrammer.parameters(), lr=train_hps['lr'])
@@ -309,8 +312,8 @@ def main():
 
     for epoch in range(train_hps['num_epochs']):
         for bidx, batch in enumerate(train_loader):
-            sentence = batch['input_ids'].cuda()
-            labels = batch['label'].cuda()
+            sentence = batch['input_ids'].to(device)
+            labels = batch['label'].to(device)
             programmed_img = reprogrammer(sentence)
             logits = vision_model(programmed_img)
             mapped_logits = get_mapped_logits(logits, class_mapping)
