@@ -24,16 +24,17 @@ train_hps = {
     'hidden_size' : 256
 }
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def evaluate(dataloader, model, iter_no, max_batches = None):
     total_correct = 0.0
     total_examples = 0.0
     model.eval()
     for bidx, batch in enumerate(dataloader):
-        sentence = batch['input_ids'].cuda()
-        attention_mask = batch['attention_mask'].cuda()
+        sentence = batch['input_ids'].to(device)
+        attention_mask = batch['attention_mask'].to(device)
         max_sentence_length = torch.max(torch.sum(attention_mask, dim=1)).item()
-        labels = batch['label'].cuda()
+        labels = batch['label'].to(device)
         logits = model(sentence, max_sentence_length = max_sentence_length)
         prediction = torch.argmax(logits, dim = 1)
         correct = torch.sum(prediction == labels)
@@ -56,18 +57,6 @@ def save_checkpoint(model, learning_rate, acc, iteration, filepath):
                 'acc' : acc,
                 'learning_rate': learning_rate}, filepath)
 
-# def find_max_sentence_length(train_dataset, val_dataset):
-#     max_length = 0
-#     for row in train_dataset:
-#         row_length = torch.sum(row['attention_mask']).item()
-#         if row_length > max_length:
-#             max_length = row_length
-#     for row in val_dataset:
-#         row_length = torch.sum(row['attention_mask']).item()
-#         if row_length > max_length:
-#             max_length = row_length
-#     return max_length
-
 
 def load_checkpoint(checkpoint_path, model):
     assert os.path.isfile(checkpoint_path)
@@ -85,6 +74,7 @@ def main():
     p.add_argument('--text_dataset', type=str)
     p.add_argument('--language_model', type=str)
     p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers/ClassificationModels")
+    p.add_argument('--cache_dir', type=str, default = "/data2/paarth/HuggingFaceDatasets")
     p.add_argument('--resume_training', type=int, default = 0)
     args = p.parse_args()
 
@@ -92,24 +82,20 @@ def main():
 
     assert args.text_dataset in dataset_sentence_key_mapping
 
-    train_dataset_raw = datasets.load_dataset(args.text_dataset, split="train")
+    train_dataset_raw = datasets.load_dataset(args.text_dataset, split="train", cache_dir = args.cache_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
     text_key = dataset_sentence_key_mapping[args.text_dataset]
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
 
-    val_dataset_raw = datasets.load_dataset(args.text_dataset, split="test")
+    val_dataset_raw = datasets.load_dataset(args.text_dataset, split="test", cache_dir = args.cache_dir)
     val_dataset = val_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     val_dataset = val_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     val_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
 
-    # max_sentence_length = find_max_sentence_length(train_dataset, val_dataset)
-    # print("Max sentence length", max_sentence_length)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_hps['batch_size'], shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=train_hps['batch_size'], shuffle=True)
-
-    
 
     vocab_size = len(tokenizer.get_vocab())
 
@@ -122,7 +108,7 @@ def main():
     )
 
     
-    model.cuda()
+    model.to(device)
     
     optimizer = optim.Adam(model.parameters(), lr=train_hps['lr'])
     loss_criterion = nn.CrossEntropyLoss()
@@ -155,10 +141,10 @@ def main():
 
     for epoch in range(train_hps['num_epochs']):
         for bidx, batch in enumerate(train_loader):
-            sentence = batch['input_ids'].cuda()
-            attention_mask = batch['attention_mask'].cuda()
+            sentence = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
             max_sentence_length = torch.max(torch.sum(attention_mask, dim=1)).item()
-            labels = batch['label'].cuda()
+            labels = batch['label'].to(device)
             logits = model(sentence, max_sentence_length = max_sentence_length)
             loss = loss_criterion(logits, labels)
             optimizer.zero_grad()
