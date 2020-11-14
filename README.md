@@ -1,4 +1,4 @@
-# Multi-modal adversarial Reprogramming
+# Multi-modal Adversarial Reprogramming
 
 ## Installation
 * Clone the repo: ``git clone multimodal_rerprogramming``
