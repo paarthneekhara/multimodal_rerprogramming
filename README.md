@@ -13,4 +13,5 @@
     1) ``pip install datasets``
     2) ``pip install transformers``
     3) ``pip install tensorboardX``
+    3) ``pip install sklearn==0.23.2``
     
