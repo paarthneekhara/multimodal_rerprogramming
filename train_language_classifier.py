@@ -76,6 +76,7 @@ def main():
     p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers/ClassificationModels")
     p.add_argument('--cache_dir', type=str, default = "/data2/paarth/HuggingFaceDatasets")
     p.add_argument('--resume_training', type=int, default = 0)
+    p.add_argument('--max_validation_batches', type=int, default = 100)
     args = p.parse_args()
 
     dataset_sentence_key_mapping = data_utils.dataset_sentence_key_mapping
@@ -165,7 +166,7 @@ def main():
                 print("Evaluating")
                 metrics = evaluate(val_loader, 
                     model,
-                    iter_no, max_batches = 100)
+                    iter_no, max_batches = args.max_validation_batches)
                 tb_writer.add_scalar('val_acc', metrics['acc'], iter_no)
                 print(metrics)
                 model_path = os.path.join(ckptdir, "model.p")
