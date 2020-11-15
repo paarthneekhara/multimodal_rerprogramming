@@ -32,7 +32,15 @@ class ReprogrammingFuntion(nn.Module):
             self.base_image = torch.tensor(image, requires_grad=False).to(device)
             self.alpha = alpha
 
+        self.image_mean_tensor = torch.tensor(img_mean)[None,:,None,None].to(device)
+        self.image_std_tensor = torch.tensor(img_std)[None,:,None,None].to(device)
 
+    def unnormalize_image(self, x):
+        return x * self.image_std_tensor + self.image_mean_tensor
+
+    def normalize_image(self, x):
+        return (x - self.image_mean_tensor) / self.image_std_tensor
+        
     def forward(self, sentence_batch):
         sentence_embedding = torch.tanh(self.token_embedding(sentence_batch)) # (N, l, 16*16*3)
         _N, _L, _ = sentence_embedding.size()
@@ -55,6 +63,8 @@ class ReprogrammingFuntion(nn.Module):
             base_image_batch = self.base_image[None].repeat((_N, 1, 1, 1))
             reprogrammed_image = base_image_batch + self.alpha * reprogrammed_image
         
-        reprogrammed_image = torch.clamp(reprogrammed_image, -1.0, 1.0) # because image is normalized
+        unnormalized_image = self.unnormalize_image(reprogrammed_image)
+        unnormalized_image_clipped = torch.clamp(unnormalized_image, 0.0, 1.0)
+        reprogrammed_image_clipped = self.normalize_image(unnormalized_image_clipped)
         
-        return reprogrammed_image
+        return reprogrammed_image_clipped
