@@ -67,8 +67,10 @@ def main():
         os.makedirs(logdir)
 
     subset = None
+    val_split = "test"
     if args.text_dataset == "glue":
         subset = "cola"
+        val_split = "validation"
 
     dataset = load_dataset(args.text_dataset, subset, cache_dir = args.cache_dir)
 
@@ -78,7 +80,7 @@ def main():
     y_train = dataset['train']['label']
 
     X_test = tfidfVectorizer.transform(dataset['test']['text'])
-    y_test = dataset['test']['label']
+    y_test = dataset[val_split]['label']
 
 
     classifiers = {
