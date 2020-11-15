@@ -173,6 +173,7 @@ def main():
     p.add_argument('--lr', type=float, default = 0.001)
     p.add_argument('--resume_training', type=int, default = 0)
     p.add_argument('--m_per_class', type=int, default = 1)
+    p.add_argument('--max_validation_batches', type=int, default = 100)
     args = p.parse_args()
 
     train_hps['lr'] = args.lr
@@ -279,7 +280,7 @@ def main():
                 print("Evaluating")
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
-                    iter_no, class_mapping, max_batches = 100, img_mean = img_mean, img_std = img_std)
+                    iter_no, class_mapping, max_batches = args.max_validation_batches, img_mean = img_mean, img_std = img_std)
                 tb_writer.add_scalar('val_acc', metrics['acc'], iter_no)
                 print(metrics)
                 model_path = os.path.join(ckptdir, "model.p")
