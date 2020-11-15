@@ -3,7 +3,8 @@ dataset_sentence_key_mapping = {
     'emotion' : 'text',
     'ag_news' : 'text',
     'emo' : 'text',
-    'yelp_polarity' : 'text'
+    'yelp_polarity' : 'text',
+    'glue' : 'sentence'
 }
 
 dataset_num_classes = {
@@ -11,7 +12,8 @@ dataset_num_classes = {
     'emotion' : 6,
     'ag_news' : 4,
     'emo' : 4,
-    'yelp_polarity' : 2
+    'yelp_polarity' : 2,
+    'glue' : 2
 }
 
 image_model_configs = {
