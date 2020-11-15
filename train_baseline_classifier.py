@@ -66,7 +66,11 @@ def main():
     if not os.path.exists(logdir):
         os.makedirs(logdir)
 
-    dataset = load_dataset(args.text_dataset, cache_dir = args.cache_dir)
+    subset = None
+    if args.text_dataset == "glue":
+        subset = "cola"
+
+    dataset = load_dataset(args.text_dataset, subset, cache_dir = args.cache_dir)
 
     tfidfVectorizer = TfidfVectorizer()
     tfidf = tfidfVectorizer.fit_transform(dataset['train']['text'])
