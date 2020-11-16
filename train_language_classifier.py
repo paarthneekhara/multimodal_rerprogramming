@@ -79,20 +79,17 @@ def main():
     p.add_argument('--max_validation_batches', type=int, default = 100)
     args = p.parse_args()
 
-    dataset_sentence_key_mapping = data_utils.dataset_sentence_key_mapping
+    dataset_configs = data_utils.text_dataset_configs
+    assert args.text_dataset in dataset_configs
+    text_dataset_config = dataset_configs[args.text_dataset]
 
-    assert args.text_dataset in dataset_sentence_key_mapping
-
-    subset = None
-    val_split = "test"
-    if args.text_dataset == "glue":
-        subset = "cola"
-        val_split = "validation"
-
+    subset = text_dataset_config['subset']
+    val_split = text_dataset_config['val_split']
+    text_key = text_dataset_config['sentence_mapping']
 
     train_dataset_raw = datasets.load_dataset(args.text_dataset, subset, split="train", cache_dir = args.cache_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-    text_key = dataset_sentence_key_mapping[args.text_dataset]
+    
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
@@ -112,7 +109,8 @@ def main():
         vocab_size, 
         train_hps['embedding_size'], 
         train_hps['hidden_size'], 
-        data_utils.dataset_num_classes[args.text_dataset]
+        text_dataset_config['num_labels'],
+        device = device
     )
 
     

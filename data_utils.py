@@ -1,20 +1,60 @@
-dataset_sentence_key_mapping = {
-    'imdb' : 'text',
-    'emotion' : 'text',
-    'ag_news' : 'text',
-    'emo' : 'text',
-    'yelp_polarity' : 'text',
-    'glue' : 'sentence'
+text_dataset_configs = {
+    'imdb' : {
+        'sentence_mapping' : 'text',
+        'num_labels' : 2,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'emotion' : {
+        'sentence_mapping' : 'text',
+        'num_labels' : 6,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'ag_news' : {
+        'sentence_mapping' : 'text',
+        'num_labels' : 4,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'emo' : {
+        'sentence_mapping' : 'text',
+        'num_labels' : 4,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'yelp_polarity' : {
+        'sentence_mapping' : 'text',
+        'num_labels' : 2,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'glue' : {
+        'sentence_mapping' : 'sentence',
+        'num_labels' : 2,
+        'subset' : None,
+        'val_split' : 'validation'
+    },
 }
 
-dataset_num_classes = {
-    'imdb' : 2,
-    'emotion' : 6,
-    'ag_news' : 4,
-    'emo' : 4,
-    'yelp_polarity' : 2,
-    'glue' : 2
-}
+
+# dataset_sentence_key_mapping = {
+#     'imdb' : 'text',
+#     'emotion' : 'text',
+#     'ag_news' : 'text',
+#     'emo' : 'text',
+#     'yelp_polarity' : 'text',
+#     'glue' : 'sentence'
+# }
+
+# dataset_num_classes = {
+#     'imdb' : 2,
+#     'emotion' : 6,
+#     'ag_news' : 4,
+#     'emo' : 4,
+#     'yelp_polarity' : 2,
+#     'glue' : 2
+# }
 
 image_model_configs = {
     'vit_base_patch16_384' : {
