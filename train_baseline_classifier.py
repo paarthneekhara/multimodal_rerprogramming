@@ -55,14 +55,15 @@ def main():
     subset = text_dataset_config['subset']
     text_key = text_dataset_config['sentence_mapping']
     val_split = text_dataset_config['val_split']
-    
+    data_files = text_dataset_config['data_files']
+
     exp_name = "baseline_{}_model_{}".format(args.text_dataset, args.algorithm)
 
     logdir = os.path.join(args.logdir, exp_name)
     if not os.path.exists(logdir):
         os.makedirs(logdir)
 
-    dataset = load_dataset(args.text_dataset, subset, cache_dir = args.cache_dir)
+    dataset = load_dataset(args.text_dataset, subset, data_files=data_files, cache_dir = args.cache_dir)
 
     tfidfVectorizer = TfidfVectorizer()
     tfidf = tfidfVectorizer.fit_transform(dataset['train'][text_key])
