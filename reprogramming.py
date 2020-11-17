@@ -187,15 +187,16 @@ def main():
     val_split = text_dataset_config['val_split']
     text_key = text_dataset_config['sentence_mapping']
     data_files = text_dataset_config['data_files']
+    dataset_name = args.text_dataset if data_files is None else 'json'
 
-    train_dataset_raw = datasets.load_dataset(args.text_dataset, subset, data_files=data_files, split="train", cache_dir = args.cache_dir)
+    train_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split="train", cache_dir = args.cache_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
     
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     train_dataset.set_format(type='torch', columns=['input_ids', 'label'])
 
-    val_dataset_raw = datasets.load_dataset(args.text_dataset, subset, data_files=data_files, split=val_split, cache_dir = args.cache_dir)
+    val_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split=val_split, cache_dir = args.cache_dir)
     val_dataset = val_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     val_dataset = val_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     val_dataset.set_format(type='torch', columns=['input_ids', 'label'])

@@ -56,14 +56,15 @@ def main():
     text_key = text_dataset_config['sentence_mapping']
     val_split = text_dataset_config['val_split']
     data_files = text_dataset_config['data_files']
-
+    dataset_name = args.text_dataset if data_files is None else 'json'
+    
     exp_name = "baseline_{}_model_{}".format(args.text_dataset, args.algorithm)
 
     logdir = os.path.join(args.logdir, exp_name)
     if not os.path.exists(logdir):
         os.makedirs(logdir)
 
-    dataset = load_dataset(args.text_dataset, subset, data_files=data_files, cache_dir = args.cache_dir)
+    dataset = load_dataset(dataset_name, subset, data_files=data_files, cache_dir = args.cache_dir)
 
     tfidfVectorizer = TfidfVectorizer()
     tfidf = tfidfVectorizer.fit_transform(dataset['train'][text_key])
