@@ -173,23 +173,30 @@ def main():
     p.add_argument('--lr', type=float, default = 0.001)
     p.add_argument('--resume_training', type=int, default = 0)
     p.add_argument('--m_per_class', type=int, default = 1)
+    p.add_argument('--max_validation_batches', type=int, default = 100)
     args = p.parse_args()
 
     train_hps['lr'] = args.lr
     train_hps['label_reduction'] = args.label_reduction
 
-    dataset_sentence_key_mapping = data_utils.dataset_sentence_key_mapping
+    dataset_configs = data_utils.text_dataset_configs
+    assert args.text_dataset in dataset_configs
+    text_dataset_config = dataset_configs[args.text_dataset]
 
-    assert args.text_dataset in dataset_sentence_key_mapping
+    subset = text_dataset_config['subset']
+    val_split = text_dataset_config['val_split']
+    text_key = text_dataset_config['sentence_mapping']
+    data_files = text_dataset_config['data_files']
+    dataset_name = args.text_dataset if data_files is None else 'json'
 
-    train_dataset_raw = datasets.load_dataset(args.text_dataset, split="train", cache_dir = args.cache_dir)
+    train_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split="train", cache_dir = args.cache_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-    text_key = dataset_sentence_key_mapping[args.text_dataset]
+    
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     train_dataset.set_format(type='torch', columns=['input_ids', 'label'])
 
-    val_dataset_raw = datasets.load_dataset(args.text_dataset, split="test", cache_dir = args.cache_dir)
+    val_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split=val_split, cache_dir = args.cache_dir)
     val_dataset = val_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     val_dataset = val_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     val_dataset.set_format(type='torch', columns=['input_ids', 'label'])
@@ -207,7 +214,7 @@ def main():
     img_mean = data_utils.image_model_configs[args.vision_model]['mean']
     img_std = data_utils.image_model_configs[args.vision_model]['std']
 
-    n_classes = data_utils.dataset_num_classes[args.text_dataset]
+    n_classes = text_dataset_config['num_labels']
     
 
     reprogrammer = reprogramming_model.ReprogrammingFuntion(vocab_size, args.img_patch_size, 
@@ -274,7 +281,7 @@ def main():
                 print("Evaluating")
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
-                    iter_no, class_mapping, max_batches = 100, img_mean = img_mean, img_std = img_std)
+                    iter_no, class_mapping, max_batches = args.max_validation_batches, img_mean = img_mean, img_std = img_std)
                 tb_writer.add_scalar('val_acc', metrics['acc'], iter_no)
                 print(metrics)
                 model_path = os.path.join(ckptdir, "model.p")

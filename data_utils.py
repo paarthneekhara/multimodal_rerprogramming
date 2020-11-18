@@ -1,18 +1,59 @@
-dataset_sentence_key_mapping = {
-    'imdb' : 'text',
-    'emotion' : 'text',
-    'ag_news' : 'text',
-    'emo' : 'text',
-    'yelp_polarity' : 'text'
+text_dataset_configs = {
+    'imdb' : {
+        'data_files' : None,
+        'sentence_mapping' : 'text',
+        'num_labels' : 2,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'emotion' : {
+        'data_files' : None,
+        'sentence_mapping' : 'text',
+        'num_labels' : 6,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'ag_news' : {
+        'data_files' : None,
+        'sentence_mapping' : 'text',
+        'num_labels' : 4,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'emo' : {
+        'data_files' : None,
+        'sentence_mapping' : 'text',
+        'num_labels' : 4,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'yelp_polarity' : {
+        'data_files' : None,
+        'sentence_mapping' : 'text',
+        'num_labels' : 2,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'glue' : {
+        'data_files' : None,
+        'sentence_mapping' : 'sentence',
+        'num_labels' : 2,
+        'subset' : 'cola',
+        'val_split' : 'validation'
+    },
+    'amazon_julian' : {
+        'data_files' : {
+            'train' : ['/data2/paarth/HuggingFaceDatasets/localfiles/BooksTrain.json'],
+            'test' : ['/data2/paarth/HuggingFaceDatasets/localfiles/BooksTrain.json']
+        },
+        'sentence_mapping' : 'reviewText',
+        'num_labels' : 6,
+        'subset' : None,
+        'val_split' : 'test'
+
+    }
 }
 
-dataset_num_classes = {
-    'imdb' : 2,
-    'emotion' : 6,
-    'ag_news' : 4,
-    'emo' : 4,
-    'yelp_polarity' : 2
-}
 
 image_model_configs = {
     'vit_base_patch16_384' : {
@@ -40,6 +81,8 @@ def label_mapper(e, text_dataset):
             e['label'] = [mapping[l] for l in e['label']]
         else:
             e['label'] = mapping[e['label']]
+    elif text_dataset == 'amazon_julian':
+        e['label'] = int(e['overall'])
     else:
         pass
 

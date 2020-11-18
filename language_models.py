@@ -83,7 +83,7 @@ class CnnTextClassifier(nn.Module):
 
         return logits
 
-def get_model(model_type, vocab_size, embedding_size, hidden_size, target_size, cuda = True):
+def get_model(model_type, vocab_size, embedding_size, hidden_size, target_size, device = 'cuda'):
     assert model_type in ["uni_rnn", "bi_rnn", "cnn"]
     if model_type == "uni_rnn":
         model = UniRNN(vocab_size, embedding_size, hidden_size, target_size)
@@ -94,8 +94,7 @@ def get_model(model_type, vocab_size, embedding_size, hidden_size, target_size, 
     else:
         raise Exception("Not Implemented")
     
-    if cuda:
-        model = model.cuda()
+    model = model.to(device)
 
     return model
 

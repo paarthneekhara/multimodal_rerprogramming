@@ -76,20 +76,27 @@ def main():
     p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers/ClassificationModels")
     p.add_argument('--cache_dir', type=str, default = "/data2/paarth/HuggingFaceDatasets")
     p.add_argument('--resume_training', type=int, default = 0)
+    p.add_argument('--max_validation_batches', type=int, default = 100)
     args = p.parse_args()
 
-    dataset_sentence_key_mapping = data_utils.dataset_sentence_key_mapping
+    dataset_configs = data_utils.text_dataset_configs
+    assert args.text_dataset in dataset_configs
+    text_dataset_config = dataset_configs[args.text_dataset]
 
-    assert args.text_dataset in dataset_sentence_key_mapping
-
-    train_dataset_raw = datasets.load_dataset(args.text_dataset, split="train", cache_dir = args.cache_dir)
+    subset = text_dataset_config['subset']
+    val_split = text_dataset_config['val_split']
+    text_key = text_dataset_config['sentence_mapping']
+    data_files = text_dataset_config['data_files']
+    dataset_name = args.text_dataset if data_files is None else 'json'
+    
+    train_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split="train", cache_dir = args.cache_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-    text_key = dataset_sentence_key_mapping[args.text_dataset]
+    
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
 
-    val_dataset_raw = datasets.load_dataset(args.text_dataset, split="test", cache_dir = args.cache_dir)
+    val_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split=val_split, cache_dir = args.cache_dir)
     val_dataset = val_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     val_dataset = val_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     val_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
@@ -104,7 +111,8 @@ def main():
         vocab_size, 
         train_hps['embedding_size'], 
         train_hps['hidden_size'], 
-        data_utils.dataset_num_classes[args.text_dataset]
+        text_dataset_config['num_labels'],
+        device = device
     )
 
     
@@ -158,7 +166,7 @@ def main():
                 print("Evaluating")
                 metrics = evaluate(val_loader, 
                     model,
-                    iter_no, max_batches = 100)
+                    iter_no, max_batches = args.max_validation_batches)
                 tb_writer.add_scalar('val_acc', metrics['acc'], iter_no)
                 print(metrics)
                 model_path = os.path.join(ckptdir, "model.p")
