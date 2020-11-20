@@ -15,3 +15,5 @@
     3) ``pip install tensorboardX``
     3) ``pip install sklearn==0.23.2``
     
+
+Sample Reprogrammer Checkpoint: https://drive.google.com/file/d/1xn3zm0DmNNVPEHb_fFLAWRoMjNpb-nIx/view?usp=sharing
