@@ -44,7 +44,7 @@ text_dataset_configs = {
     'amazon_julian' : {
         'data_files' : {
             'train' : ['/data2/paarth/HuggingFaceDatasets/localfiles/BooksTrain.json'],
-            'test' : ['/data2/paarth/HuggingFaceDatasets/localfiles/BooksTrain.json']
+            'test' : ['/data2/paarth/HuggingFaceDatasets/localfiles/BooksTest.json']
         },
         'sentence_mapping' : 'reviewText',
         'num_labels' : 6,
