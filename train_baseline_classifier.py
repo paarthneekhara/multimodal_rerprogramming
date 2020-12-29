@@ -55,16 +55,16 @@ def load_obj(file_path):
 
 
 def ValidReview(reviewTextList, overallList):
-	NewreviewTextList = []
-	NewoverallList = []
+    NewreviewTextList = []
+    NewoverallList = []
 
-	for i in range(len(reviewTextList)):
-		if isinstance(reviewTextList[i], str):
-			if len(reviewTextList[i])> 0:
-				NewreviewTextList.append(reviewTextList[i])
-				NewoverallList.append(overallList[i])
+    for i in range(len(reviewTextList)):
+        if isinstance(reviewTextList[i], str):
+            if len(reviewTextList[i])> 0:
+                NewreviewTextList.append(reviewTextList[i])
+                NewoverallList.append(overallList[i])
 
-	return NewreviewTextList, NewoverallList
+    return NewreviewTextList, NewoverallList
 
 
 def main():
@@ -80,13 +80,7 @@ def main():
     p.add_argument('--custom_dataset', type=str, help = helpText )
     p.add_argument('--deepyeti_dataset' , type=str, help = "Please enter the path of deepyeti's dataset, like: Musical_Instruments.json.gz")
 
-
-
     args = p.parse_args()
-
-    logdir = os.path.join(args.logdir, exp_name)
-        if not os.path.exists(logdir):
-            os.makedirs(logdir)
 
     if args.custom_dataset:
         # Not ready yet
@@ -94,6 +88,7 @@ def main():
         exit()
 
     elif args.deepyeti_dataset:
+        exp_name = "baseline_{}_model_{}".format(args.deepyeti_dataset, args.algorithm)
         df = getDF(args.deepyeti_dataset)
         reviewTextList  = df['reviewText'].tolist()
         overallList  = df['overall'].tolist()
@@ -113,6 +108,7 @@ def main():
         y_test = overallList[DataSpliter:]
         DataSetName = args.deepyeti_dataset
     else: # process as normal
+        exp_name = "baseline_{}_model_{}".format(args.deepyeti_dataset, args.algorithm)
         dataset_configs = data_utils.text_dataset_configs
         print(args.text_dataset)
         print(dataset_configs[args.text_dataset])
@@ -126,7 +122,7 @@ def main():
         data_files = text_dataset_config['data_files']
         dataset_name = args.text_dataset if data_files is None else 'json'
         
-        exp_name = "baseline_{}_model_{}".format(args.text_dataset, args.algorithm)
+        
 
         dataset = load_dataset(dataset_name, subset, data_files=data_files, cache_dir = args.cache_dir)
 
@@ -138,6 +134,13 @@ def main():
         X_test = tfidfVectorizer.transform(dataset['test'][text_key])
         y_test = dataset[val_split]['label']
         DataSetName = args.text_dataset
+
+
+
+    logdir = os.path.join(args.logdir, exp_name)
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+
 
     classifiers = {
         "logistic" : LogisticRegression( verbose = 2, max_iter = 1000, n_jobs = -1, solver = "saga"),
