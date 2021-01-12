@@ -173,6 +173,7 @@ def main():
     p.add_argument('--lr', type=float, default = 0.001)
     p.add_argument('--resume_training', type=int, default = 0)
     p.add_argument('--m_per_class', type=int, default = 1)
+    p.add_argument('--pretrained_vm', type=int, default = 1)
     p.add_argument('--max_validation_batches', type=int, default = 100)
     args = p.parse_args()
 
@@ -205,7 +206,7 @@ def main():
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_hps['batch_size'], shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=train_hps['batch_size'], shuffle=True)
 
-    vision_model = timm.create_model(args.vision_model, pretrained=True)
+    vision_model = timm.create_model(args.vision_model, pretrained=args.pretrained_vm==1)
     vision_model.eval()
     vision_model.to(device)
 

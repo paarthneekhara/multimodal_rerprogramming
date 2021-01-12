@@ -51,6 +51,17 @@ text_dataset_configs = {
         'subset' : None,
         'val_split' : 'test'
 
+    },
+    'goodreads_julian' : {
+        'data_files' : {
+            'train' : ['/data2/paarth/HuggingFaceDatasets/localfiles/goodreads_train.json'],
+            'test' : ['/data2/paarth/HuggingFaceDatasets/localfiles/goodreads_test.json']
+        },
+        'sentence_mapping' : 'reviewText',
+        'num_labels' : 2,
+        'subset' : None,
+        'val_split' : 'test'
+
     }
 }
 
