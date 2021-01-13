@@ -15,7 +15,7 @@ import reprogramming_model
 
 train_hps = {
     'num_epochs' : 100,
-    'max_iterations' : 300000,
+    'max_iterations' : 200000, # overridden by args
     'lr' : 0.001, # overridden by args
     'batch_size' : 4,
     'validate_every' : 500, # validates on small subset of val set
@@ -175,10 +175,14 @@ def main():
     p.add_argument('--m_per_class', type=int, default = 1)
     p.add_argument('--pretrained_vm', type=int, default = 1)
     p.add_argument('--max_validation_batches', type=int, default = 100)
+    p.add_argument('--max_iterations', type=int, default = 200000)
+
+
     args = p.parse_args()
 
     train_hps['lr'] = args.lr
     train_hps['label_reduction'] = args.label_reduction
+    train_hps['max_iterations'] = args.max_iterations
 
     dataset_configs = data_utils.text_dataset_configs
     assert args.text_dataset in dataset_configs

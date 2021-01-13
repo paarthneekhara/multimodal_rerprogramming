@@ -15,7 +15,7 @@ import language_models
 
 train_hps = {
     'num_epochs' : 100,
-    'max_iterations' : 300000,
+    'max_iterations' : 300000, # overridden by args
     'lr' : 0.0001,
     'batch_size' : 32,
     'validate_every' : 500, # validates on small subset of val set
@@ -77,7 +77,11 @@ def main():
     p.add_argument('--cache_dir', type=str, default = "/data2/paarth/HuggingFaceDatasets")
     p.add_argument('--resume_training', type=int, default = 0)
     p.add_argument('--max_validation_batches', type=int, default = 100)
+    p.add_argument('--max_iterations', type=int, default = 200000)
+
     args = p.parse_args()
+
+    train_hps['max_iterations'] = args.max_iterations
 
     dataset_configs = data_utils.text_dataset_configs
     assert args.text_dataset in dataset_configs
