@@ -15,7 +15,7 @@ import reprogramming_model
 
 train_hps = {
     'num_epochs' : 100,
-    'max_iterations' : 200000, # overridden by args
+    'max_iterations' : 100000, # overridden by args
     'lr' : 0.001, # overridden by args
     'batch_size' : 4,
     'validate_every' : 500, # validates on small subset of val set
