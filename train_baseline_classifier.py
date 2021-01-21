@@ -45,6 +45,7 @@ def main():
     )
     p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers/BaselineClassificationModels")
     p.add_argument('--cache_dir', type=str, default = "/data2/paarth/HuggingFaceDatasets")
+    p.add_argument('--n_training', type=int, default = None)
 
     args = p.parse_args()
     
@@ -65,6 +66,8 @@ def main():
         os.makedirs(logdir)
 
     dataset = load_dataset(dataset_name, subset, data_files=data_files, cache_dir = args.cache_dir)
+    if args.n_training is not None:
+        dataset['train'] = dataset['train[0:]'.format(args.n_training)]
 
     tfidfVectorizer = TfidfVectorizer()
     tfidf = tfidfVectorizer.fit_transform(dataset['train'][text_key])

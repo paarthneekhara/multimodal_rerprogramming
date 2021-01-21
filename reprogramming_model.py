@@ -59,6 +59,9 @@ class ReprogrammingFuntion(nn.Module):
                 # adding the padding embedding all the way till the end
                 reprogrammed_image[:,:,i_start:i_end,j_start:j_end] = sentence_embedding[:,_L-1]
 
+        # normalizing by batch size
+        pert_norm = torch.norm(reprogrammed_image, p=2)/_N
+        
         if self.base_image is not None:
             base_image_batch = self.base_image[None].repeat((_N, 1, 1, 1))
             reprogrammed_image = base_image_batch + self.alpha * reprogrammed_image
@@ -67,4 +70,4 @@ class ReprogrammingFuntion(nn.Module):
         unnormalized_image_clipped = torch.clamp(unnormalized_image, 0.0, 1.0)
         reprogrammed_image_clipped = self.normalize_image(unnormalized_image_clipped)
         
-        return reprogrammed_image_clipped
+        return reprogrammed_image_clipped, pert_norm

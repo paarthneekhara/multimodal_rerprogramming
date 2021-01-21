@@ -100,7 +100,7 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer,
     for bidx, batch in enumerate(dataloader):
         sentence = batch['input_ids'].to(device)
         labels = batch['label'].to(device)
-        programmed_img = reprogrammer(sentence)
+        programmed_img, pert_norm = reprogrammer(sentence)
         if bidx == 0:
             vis_image = unnormalize_image(programmed_img[0], img_mean, img_std)
             tb_writer.add_image("ProgrammedImage", vis_image, iter_no)
@@ -108,7 +108,8 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer,
             _N = sentence.size(0)
             base_image_batch = reprogrammer.base_image[None].repeat((_N, 1, 1, 1))
             pert_normalized = programmed_img - base_image_batch
-            pert_unnormalized = unnormalize_image(pert_normalized, img_mean, img_std)
+            pert_unnormalized = unnormalize_image(programmed_img, img_mean, img_std) - unnormalize_image(base_image_batch, img_mean, img_std)
+            #pert_unnormalized = unnormalize_image(pert_normalized, img_mean, img_std)
             _l_inf_norm = torch.max(torch.abs(pert_unnormalized)).item()
             l_inf_norms.append(_l_inf_norm)
 
@@ -125,7 +126,8 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer,
     mean_linf_norm = None
     if len(l_inf_norms) > 0:
         mean_linf_norm = float(np.mean(l_inf_norms))
-
+    print("mean_linf_norm", mean_linf_norm)
+    
     reprogrammer.train()
     
     return {
@@ -175,9 +177,10 @@ def main():
     p.add_argument('--m_per_class', type=int, default = 1)
     p.add_argument('--pretrained_vm', type=int, default = 1)
     p.add_argument('--max_validation_batches', type=int, default = 100)
-    p.add_argument('--max_iterations', type=int, default = 200000)
-
-
+    p.add_argument('--max_iterations', type=int, default = 100000)
+    p.add_argument('--exp_name_extension', type=str, default = "")
+    p.add_argument('--reg_alpha', type=float, default = 1e-4)
+    p.add_argument('--n_training', type=int, default = None)
     args = p.parse_args()
 
     train_hps['lr'] = args.lr
@@ -194,13 +197,17 @@ def main():
     data_files = text_dataset_config['data_files']
     dataset_name = args.text_dataset if data_files is None else 'json'
 
-    train_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split="train", cache_dir = args.cache_dir)
+    train_split = "train"
+    if args.n_training is not None:
+        train_split = "train[0:{}]".format(args.n_training)
+
+    train_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split=train_split, cache_dir = args.cache_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
     
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     train_dataset.set_format(type='torch', columns=['input_ids', 'label'])
-
+    
     val_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split=val_split, cache_dir = args.cache_dir)
     val_dataset = val_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     val_dataset = val_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
@@ -210,10 +217,15 @@ def main():
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_hps['batch_size'], shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=train_hps['batch_size'], shuffle=True)
 
+    print("Pretrained VM", args.pretrained_vm==1)
     vision_model = timm.create_model(args.vision_model, pretrained=args.pretrained_vm==1)
+    for parameter in vision_model.parameters():
+        # https://discuss.pytorch.org/t/best-practice-for-freezing-layers/58156
+        parameter.requires_grad = False # to avoid gradient accumulation.
     vision_model.eval()
     vision_model.to(device)
-
+    print("Vision model Frozen!")
+    
     vocab_size = len(tokenizer.get_vocab())
 
     img_mean = data_utils.image_model_configs[args.vision_model]['mean']
@@ -239,6 +251,7 @@ def main():
         args.text_dataset, train_hps['lr'], base_image_name, 
         args.vision_model, args.pert_alpha, args.m_per_class, args.label_reduction
     )
+    exp_name = "{}_{}".format(exp_name, args.exp_name_extension)
     logdir = os.path.join(args.logdir, exp_name)
     ckptdir = os.path.join(logdir, "CKPTS")
     if not os.path.exists(logdir):
@@ -271,16 +284,20 @@ def main():
         for bidx, batch in enumerate(train_loader):
             sentence = batch['input_ids'].to(device)
             labels = batch['label'].to(device)
-            programmed_img = reprogrammer(sentence)
+            programmed_img, pert_norm = reprogrammer(sentence)
             logits = vision_model(programmed_img)
             mapped_logits = get_mapped_logits(logits, class_mapping)
             loss = loss_criterion(mapped_logits, labels)
+            reg_loss = pert_norm
+            loss_total = loss + args.reg_alpha * reg_loss
             optimizer.zero_grad()
-            loss.backward()
+            loss_total.backward()
             optimizer.step()
             if iter_no % 10 == 0:
                 print (iter_no, "Loss:", loss.item())
                 tb_writer.add_scalar('train_loss', loss, iter_no)
+                tb_writer.add_scalar('train_loss_reg', reg_loss, iter_no)
+                tb_writer.add_scalar('train_loss_total', loss_total, iter_no)
 
             if iter_no % train_hps['validate_every'] == 0:
                 print("Evaluating")

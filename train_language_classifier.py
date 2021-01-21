@@ -78,6 +78,8 @@ def main():
     p.add_argument('--resume_training', type=int, default = 0)
     p.add_argument('--max_validation_batches', type=int, default = 100)
     p.add_argument('--max_iterations', type=int, default = 200000)
+    p.add_argument('--n_training', type=int, default = None)
+    p.add_argument('--exp_name_extension', type=str, default = "")
 
     args = p.parse_args()
 
@@ -93,13 +95,17 @@ def main():
     data_files = text_dataset_config['data_files']
     dataset_name = args.text_dataset if data_files is None else 'json'
     
-    train_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split="train", cache_dir = args.cache_dir)
+    train_split = "train"
+    if args.n_training is not None:
+        train_split = "train[0:{}]".format(args.n_training)
+
+    train_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split=train_split, cache_dir = args.cache_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
     
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
     train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
-
+    
     val_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split=val_split, cache_dir = args.cache_dir)
     val_dataset = val_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     val_dataset = val_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
@@ -128,6 +134,7 @@ def main():
     exp_name = "classifier_{}_lr_{}_model_{}".format(
         args.text_dataset, train_hps['lr'], args.language_model
     )
+    exp_name = "{}_{}".format(exp_name, args.exp_name_extension)
 
     logdir = os.path.join(args.logdir, exp_name)
     ckptdir = os.path.join(logdir, "CKPTS")
