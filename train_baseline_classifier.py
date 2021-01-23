@@ -46,6 +46,9 @@ def main():
     p.add_argument('--logdir', type=str, default = "/data2/paarth/ReprogrammingTransformers/BaselineClassificationModels")
     p.add_argument('--cache_dir', type=str, default = "/data2/paarth/HuggingFaceDatasets")
     p.add_argument('--n_training', type=int, default = None)
+    p.add_argument('--tfidf_analyzer', type=str, default = 'word') # set char for char-level, eg. synthetic abcd
+    p.add_argument('--ngrams_min', type=int, default = 1) 
+    p.add_argument('--ngrams_max', type=int, default = 1) 
 
     args = p.parse_args()
     
@@ -69,7 +72,8 @@ def main():
     if args.n_training is not None:
         dataset['train'] = dataset['train[0:]'.format(args.n_training)]
 
-    tfidfVectorizer = TfidfVectorizer()
+    ngram_range = (args.ngrams_min, args.ngrams_max)
+    tfidfVectorizer = TfidfVectorizer(analyzer=args.tfidf_analyzer, ngram_range=ngram_range)
     tfidf = tfidfVectorizer.fit_transform(dataset['train'][text_key])
     X_train = tfidf
     y_train = dataset['train']['label']

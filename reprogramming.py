@@ -181,6 +181,7 @@ def main():
     p.add_argument('--exp_name_extension', type=str, default = "")
     p.add_argument('--reg_alpha', type=float, default = 1e-4)
     p.add_argument('--n_training', type=int, default = None)
+    p.add_argument('--use_char_tokenizer', type=int, default = 0)
     args = p.parse_args()
 
     train_hps['lr'] = args.lr
@@ -202,7 +203,10 @@ def main():
         train_split = "train[0:{}]".format(args.n_training)
 
     train_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split=train_split, cache_dir = args.cache_dir)
-    tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
+    if args.use_char_tokenizer == 1:
+        tokenizer = data_utils.CharacterLevelTokenizer()
+    else:
+        tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
     
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)

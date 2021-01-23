@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-
+from transformers import AutoTokenizer, AutoModel, AutoConfig
 
 class UniRNN(nn.Module):
     def __init__(self, vocab_size, embedding_size, hidden_size, target_size):
@@ -83,6 +83,31 @@ class CnnTextClassifier(nn.Module):
 
         return logits
 
+
+# class TransformerModel(nn.Module):
+#     def __init__(self, vocab_size, embedding_size, hidden_size, target_size):
+#         super(TransformerModel, self).__init__()
+#         config = AutoConfig.from_pretrained('bert-base-uncased')
+#         self.hg_transformer = nn.Embedding(vocab_size, embedding_size)
+#         self.lstm = nn.LSTM(embedding_size, hidden_size, batch_first = True)
+#         self.output_layer = nn.Linear(hidden_size, target_size)
+        
+
+#     def forward(self, sentence_batch, max_sentence_length = None):
+#         # sentence_batch = Variable(sentence_batch)
+#         if max_sentence_length is not None:
+#             sentence_batch = sentence_batch[:,:max_sentence_length]
+
+#         token_embedding = self.embedding(sentence_batch)
+#         lstm_out, _ = self.lstm(token_embedding)
+#         lstm_out = lstm_out.contiguous()
+
+#         lstm_out = lstm_out[:,-1,:]
+        
+#         logits = self.output_layer(lstm_out)
+
+#         return logits
+
 def get_model(model_type, vocab_size, embedding_size, hidden_size, target_size, device = 'cuda'):
     assert model_type in ["uni_rnn", "bi_rnn", "cnn"]
     if model_type == "uni_rnn":
@@ -93,7 +118,7 @@ def get_model(model_type, vocab_size, embedding_size, hidden_size, target_size, 
         model = CnnTextClassifier(vocab_size, embedding_size, hidden_size, target_size)
     else:
         raise Exception("Not Implemented")
-    
+        
     model = model.to(device)
 
     return model

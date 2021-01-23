@@ -14,7 +14,7 @@ import numpy as np
 import language_models
 
 train_hps = {
-    'num_epochs' : 100,
+    'num_epochs' : 100000,
     'max_iterations' : 300000, # overridden by args
     'lr' : 0.0001,
     'batch_size' : 32,
@@ -79,7 +79,9 @@ def main():
     p.add_argument('--max_validation_batches', type=int, default = 100)
     p.add_argument('--max_iterations', type=int, default = 200000)
     p.add_argument('--n_training', type=int, default = None)
+    p.add_argument('--train_only_emb', type=int, default = 0)
     p.add_argument('--exp_name_extension', type=str, default = "")
+    p.add_argument('--use_char_tokenizer', type=int, default = 0)
 
     args = p.parse_args()
 
@@ -100,7 +102,11 @@ def main():
         train_split = "train[0:{}]".format(args.n_training)
 
     train_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split=train_split, cache_dir = args.cache_dir)
-    tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
+    if args.use_char_tokenizer == 1:
+        print("Using character level tokenizer")
+        tokenizer = data_utils.CharacterLevelTokenizer()
+    else:
+        tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
     
     train_dataset = train_dataset_raw.map(lambda e: tokenizer(e[text_key], truncation=True, padding='max_length'), batched=True)
     train_dataset = train_dataset.map(lambda e: data_utils.label_mapper(e, args.text_dataset), batched=True)
@@ -128,11 +134,25 @@ def main():
     
     model.to(device)
     
-    optimizer = optim.Adam(model.parameters(), lr=train_hps['lr'])
+    if args.train_only_emb == 1:
+        # First freezing all params.
+        for parameter in model.parameters():
+            parameter.requires_grad = False # to avoid gradient accumulation.
+
+        for module in model.modules():
+            if isinstance(module, nn.Embedding):
+                print("Not Freezing module", module)
+                for parameter in module.parameters():
+                    parameter.requires_grad = True # to avoid gradient accumulation.
+
+        # Only optimize embedding parmaters.
+        optimizer = optim.Adam(model.embedding.parameters(), lr=train_hps['lr'])
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=train_hps['lr'])
     loss_criterion = nn.CrossEntropyLoss()
 
-    exp_name = "classifier_{}_lr_{}_model_{}".format(
-        args.text_dataset, train_hps['lr'], args.language_model
+    exp_name = "classifier_{}_lr_{}_model_{}_OnlyEmb_{}".format(
+        args.text_dataset, train_hps['lr'], args.language_model, args.train_only_emb
     )
     exp_name = "{}_{}".format(exp_name, args.exp_name_extension)
 
@@ -163,6 +183,7 @@ def main():
             sentence = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             max_sentence_length = torch.max(torch.sum(attention_mask, dim=1)).item()
+            #print("Max sentence length", max_sentence_length)
             labels = batch['label'].to(device)
             logits = model(sentence, max_sentence_length = max_sentence_length)
             loss = loss_criterion(logits, labels)
