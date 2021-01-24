@@ -3,3 +3,5 @@ pytorch-image-models/*
 rnn_adversarial_reprogramming/*
 .ipynb_checkpoints/
 *.pyc
+generate_synthetic_data.py
+InferenceNotebookRough.ipynb
