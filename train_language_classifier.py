@@ -15,7 +15,7 @@ import language_models
 
 train_hps = {
     'num_epochs' : 100000,
-    'max_iterations' : 300000, # overridden by args
+    'max_iterations' : 200000, # overridden by args
     'lr' : 0.0001,
     'batch_size' : 32,
     'validate_every' : 500, # validates on small subset of val set

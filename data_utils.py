@@ -75,6 +75,7 @@ text_dataset_configs = {
         'subset' : None,
         'val_split' : 'test'
     },
+    # https://archive.ics.uci.edu/ml/datasets/Molecular+Biology+%28Splice-junction+Gene+Sequences%29
     'protein_splice' : {
         'data_files' : {
             'train' : ['/data2/paarth/HuggingFaceDatasets/localfiles/protein_splice_train.json'],
@@ -82,6 +83,26 @@ text_dataset_configs = {
         },
         'sentence_mapping' : 'sentence',
         'num_labels' : 3,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'questions_correct' : {
+        'data_files' : {
+            'train' : ['/data2/paarth/HuggingFaceDatasets/localfiles/questions_train_correct.json'],
+            'test' : ['/data2/paarth/HuggingFaceDatasets/localfiles/questions_test_correct.json']
+        },
+        'sentence_mapping' : 'sentence',
+        'num_labels' : 6,
+        'subset' : None,
+        'val_split' : 'test'
+    },
+    'gard' : {
+        'data_files' : {
+            'train' : ['/data2/paarth/HuggingFaceDatasets/localfiles/gard_train.json'],
+            'test' : ['/data2/paarth/HuggingFaceDatasets/localfiles/gard_test.json']
+        },
+        'sentence_mapping' : 'sentence',
+        'num_labels' : 13,
         'subset' : None,
         'val_split' : 'test'
     },
@@ -105,6 +126,18 @@ image_model_configs = {
         'std' : (0.5, 0.5, 0.5)
     },
     'resnet50' : {
+        'mean' : (0.485, 0.456, 0.406),
+        'std' : (0.229, 0.224, 0.225)
+    },
+    'tf_efficientnet_b7' : {
+        'mean' : (0.485, 0.456, 0.406),
+        'std' : (0.229, 0.224, 0.225)
+    },
+    'tf_efficientnet_b4' : {
+        'mean' : (0.485, 0.456, 0.406),
+        'std' : (0.229, 0.224, 0.225)
+    },
+    'inception_v3' : {
         'mean' : (0.485, 0.456, 0.406),
         'std' : (0.229, 0.224, 0.225)
     }
