@@ -174,7 +174,7 @@ def main():
     p.add_argument('--pert_alpha', type=float, default = 0.2)
     p.add_argument('--lr', type=float, default = 0.001)
     p.add_argument('--resume_training', type=int, default = 0)
-    p.add_argument('--m_per_class', type=int, default = 1)
+    p.add_argument('--m_per_class', type=int, default = 10)
     p.add_argument('--pretrained_vm', type=int, default = 1)
     p.add_argument('--max_validation_batches', type=int, default = 100)
     p.add_argument('--max_iterations', type=int, default = 100000)
@@ -203,6 +203,7 @@ def main():
         train_split = "train[0:{}]".format(args.n_training)
 
     train_dataset_raw = datasets.load_dataset(dataset_name, subset, data_files=data_files, split=train_split, cache_dir = args.cache_dir)
+    
     if args.use_char_tokenizer == 1:
         tokenizer = data_utils.CharacterLevelTokenizer()
     else:
