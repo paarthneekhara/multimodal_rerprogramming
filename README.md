@@ -22,7 +22,7 @@ Classification Datasets: https://archive.ics.uci.edu/ml/datasets.php?format=&tas
 
 ## Reprogramming Experiment Commands
 
-python reprogramming.py --text_dataset TEXTDATSET --logdir <PATH WHERE CKPTS/TB LOG WILL BE SAVED>  --cache_dir <PATH WHERE HF CACHE WILL BE CREATED> --reg_alpha 1e-4 --pretrained_vm 1 --resume_training 1 --use_char_tokenizer 0 --img_patch_size 16
+CUDA_VISIBLE_DEVICES=0 python reprogramming.py --text_dataset TEXTDATSET --logdir <PATH WHERE CKPTS/TB LOG WILL BE SAVED>  --cache_dir <PATH WHERE HF CACHE WILL BE CREATED> --reg_alpha 1e-4 --pretrained_vm 1 --resume_training 1 --use_char_tokenizer 0 --img_patch_size 16; 
     
 * Pretrained VM 1 or 0 depending on pretrained or random network
 * Set use_char_tokenizer to 1 if you using DNA datasets - protein_splice, geneh3
