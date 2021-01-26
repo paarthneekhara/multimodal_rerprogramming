@@ -86,6 +86,16 @@ text_dataset_configs = {
         'subset' : None,
         'val_split' : 'test'
     },
+    'geneh3' : {
+        'data_files' : {
+            'train' : ['/data2/paarth/HuggingFaceDatasets/localfiles/geneh3_train.json'],
+            'test' : ['/data2/paarth/HuggingFaceDatasets/localfiles/geneh3_test.json']
+        },
+        'sentence_mapping' : 'sentence',
+        'num_labels' : 2,
+        'subset' : None,
+        'val_split' : 'test'
+    },
     'questions_correct' : {
         'data_files' : {
             'train' : ['/data2/paarth/HuggingFaceDatasets/localfiles/questions_train_correct.json'],

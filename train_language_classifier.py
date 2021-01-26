@@ -16,7 +16,7 @@ import language_models
 train_hps = {
     'num_epochs' : 100000,
     'max_iterations' : 200000, # overridden by args
-    'lr' : 0.0001,
+    'lr' : 0.0001, # overridden by args
     'batch_size' : 32,
     'validate_every' : 500, # validates on small subset of val set
     'evaluate_every' : 5000, # evaluates on full test set using best ckpt
@@ -82,10 +82,12 @@ def main():
     p.add_argument('--train_only_emb', type=int, default = 0)
     p.add_argument('--exp_name_extension', type=str, default = "")
     p.add_argument('--use_char_tokenizer', type=int, default = 0)
+    p.add_argument('--lr', type=float, default = 0.0001)
 
     args = p.parse_args()
 
     train_hps['max_iterations'] = args.max_iterations
+    train_hps['lr'] = args.lr
 
     dataset_configs = data_utils.text_dataset_configs
     assert args.text_dataset in dataset_configs
