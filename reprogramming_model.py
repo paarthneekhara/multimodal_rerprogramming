@@ -6,6 +6,15 @@ from torchvision.transforms import ToTensor, Resize, Normalize
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+class MultiLabelRemapper(nn.Module):
+    def __init__(self, num_labels_original,num_labels_target):
+        super(LabelRemapper, self).__init__()
+        self.linear_layer = nn.Linear(num_labels_original, num_labels_target)
+
+    def forward(self, x):
+        logits = self.linear_layer(x)
+        return logits
+
 class ReprogrammingFuntion(nn.Module):
     def __init__(self, vocab_size, img_patch_size = 16, img_size = 384, 
         img_path=None, alpha=0.2, 

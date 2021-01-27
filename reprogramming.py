@@ -41,24 +41,30 @@ def normalize_image(tensor, mean, std):
     std = torch.tensor(std)[:,None,None].to(device)
     return (tensor - mean) / std
 
-def get_mapped_logits(logits, class_mapping):
+def get_mapped_logits(logits, class_mapping, multi_label_remapper):
     """
     logits : Tensor of shape (batch_size, 1000) # imagenet class logits
     class_mapping: class_mapping[i] = list of image net labels for text class i
     reduction : max or mean
     """
-    reduction = train_hps['label_reduction']
-    mapped_logits = []
-    for class_no in range(len(class_mapping)):
-        if reduction == "max":
-            class_logits, _ = torch.max(logits[:,class_mapping[class_no]], dim = 1) # batch size
-        elif reduction == "mean":
-            class_logits = torch.mean(logits[:,class_mapping[class_no]], dim = 1) # batch size
-        else:
-            raise NotImplentedException()
+    if multi_label_remapper is None:
+        #print("Here in old remapper")
+        reduction = train_hps['label_reduction']
+        mapped_logits = []
+        for class_no in range(len(class_mapping)):
+            if reduction == "max":
+                class_logits, _ = torch.max(logits[:,class_mapping[class_no]], dim = 1) # batch size
+            elif reduction == "mean":
+                class_logits = torch.mean(logits[:,class_mapping[class_no]], dim = 1) # batch size
+            else:
+                raise NotImplentedException()
 
-        mapped_logits.append(class_logits)
-    return torch.stack(mapped_logits, dim = 1)
+            mapped_logits.append(class_logits)
+        return torch.stack(mapped_logits, dim = 1)
+    else:
+        orig_prob_scores = nn.Softmax()(logits)
+        mapped_logits = multi_label_remapper(orig_prob_scores)
+        return mapped_logits
 
 def create_label_mapping(n_classes, m_per_class, image_net_labels = None):
     """
@@ -90,7 +96,8 @@ def get_imagenet_label_list(vision_model, base_image, img_size):
 
 
 def evaluate(dataloader, vision_model, reprogrammer, tb_writer, 
-    iter_no, class_mapping, max_batches = None, 
+    iter_no, class_mapping, multi_label_remapper, reduced_labels = None, 
+    max_batches = None, 
     img_mean=(0.5, 0.5, 0.5), img_std=(0.5, 0.5, 0.5)):
     
     total_correct = 0.0
@@ -114,7 +121,9 @@ def evaluate(dataloader, vision_model, reprogrammer, tb_writer,
             l_inf_norms.append(_l_inf_norm)
 
         logits = vision_model(programmed_img)
-        mapped_logits = get_mapped_logits(logits, class_mapping)
+        if reduced_labels is not None:
+            logits = logits[:,image_net_labels[:reduced_labels]]
+        mapped_logits = get_mapped_logits(logits, class_mapping, multi_label_remapper)
         prediction = torch.argmax(mapped_logits, dim = 1)
         correct = torch.sum(prediction == labels)
         total_correct += correct.item()
@@ -182,6 +191,7 @@ def main():
     p.add_argument('--reg_alpha', type=float, default = 1e-4)
     p.add_argument('--n_training', type=int, default = None)
     p.add_argument('--use_char_tokenizer', type=int, default = 0)
+    p.add_argument('--reduced_labels', type=int, default = None)
     args = p.parse_args()
 
     train_hps['lr'] = args.lr
@@ -246,7 +256,7 @@ def main():
     
     image_net_labels = get_imagenet_label_list(vision_model, reprogrammer.base_image, args.img_size)
     print("Imagenet Label Ordering..", image_net_labels[:20])
-    optimizer = optim.Adam(reprogrammer.parameters(), lr=train_hps['lr'])
+    
     loss_criterion = nn.CrossEntropyLoss()
 
     base_image_name = None
@@ -280,10 +290,22 @@ def main():
             raise Exception("model not found")
         reprogrammer, iter_no, image_net_labels = load_checkpoint(resume_model_path, reprogrammer)
 
+    class_mapping = None
+    multi_label_remapper = None
+    num_imagenet_labels = 1000
+    if args.reduced_labels is not None:
+        num_imagenet_labels = args.reduced_labels
 
-    class_mapping = create_label_mapping(n_classes, args.m_per_class, image_net_labels)
-    print("Class Mapping")
-    pprint.pprint(class_mapping)
+    if n_classes < num_imagenet_labels:
+        class_mapping = create_label_mapping(n_classes, args.m_per_class, image_net_labels)
+        print("Class Mapping")
+        pprint.pprint(class_mapping)
+        optimizer = optim.Adam(reprogrammer.parameters(), lr=train_hps['lr'])
+    else:
+        print("Using Multi Label Remapper!")
+        multi_label_remapper = reprogramming_model.MultiLabelRemapper(num_imagenet_labels, n_classes)
+        params = list(reprogrammer.parameters()) + list(multi_label_remapper.parameters())
+        optimizer = optim.Adam(params, lr=train_hps['lr'])
 
     for epoch in range(train_hps['num_epochs']):
         for bidx, batch in enumerate(train_loader):
@@ -291,7 +313,9 @@ def main():
             labels = batch['label'].to(device)
             programmed_img, pert_norm = reprogrammer(sentence)
             logits = vision_model(programmed_img)
-            mapped_logits = get_mapped_logits(logits, class_mapping)
+            if args.reduced_labels is not None:
+                logits = logits[:,image_net_labels[:args.reduced_labels]]
+            mapped_logits = get_mapped_logits(logits, class_mapping, multi_label_remapper)
             loss = loss_criterion(mapped_logits, labels)
             reg_loss = pert_norm
             loss_total = loss + args.reg_alpha * reg_loss
@@ -308,7 +332,9 @@ def main():
                 print("Evaluating")
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
-                    iter_no, class_mapping, max_batches = args.max_validation_batches, img_mean = img_mean, img_std = img_std)
+                    iter_no, class_mapping, multi_label_remapper, 
+                    args.reduced_labels, 
+                    max_batches = args.max_validation_batches, img_mean = img_mean, img_std = img_std)
                 tb_writer.add_scalar('val_acc', metrics['acc'], iter_no)
                 print(metrics)
                 model_path = os.path.join(ckptdir, "model.p")
@@ -329,7 +355,8 @@ def main():
                 reprogrammer, _, _ = load_checkpoint(best_model_path, reprogrammer)
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
-                    iter_no, class_mapping, img_mean = img_mean, img_std = img_std)
+                    iter_no, class_mapping, multi_label_remapper, args.reduced_labels, 
+                    img_mean = img_mean, img_std = img_std)
                 log_fn = os.path.join(logdir, "best_metrics.json")
                 metrics['iter_no'] = best_iter_no
                 metrics['base_image_path'] = args.base_image_path

@@ -20,8 +20,8 @@ train_hps = {
     'batch_size' : 32,
     'validate_every' : 500, # validates on small subset of val set
     'evaluate_every' : 5000, # evaluates on full test set using best ckpt
-    'embedding_size' : 256,
-    'hidden_size' : 256
+    'embedding_size' : 256, # overridden by args
+    'hidden_size' : 256 # overridden by args
 }
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -83,11 +83,15 @@ def main():
     p.add_argument('--exp_name_extension', type=str, default = "")
     p.add_argument('--use_char_tokenizer', type=int, default = 0)
     p.add_argument('--lr', type=float, default = 0.0001)
+    p.add_argument('--embedding_size', type=int, default = 256)
+    p.add_argument('--hidden_size', type=int, default = 256)
 
     args = p.parse_args()
 
     train_hps['max_iterations'] = args.max_iterations
     train_hps['lr'] = args.lr
+    train_hps['embedding_size'] = args.embedding_size
+    train_hps['hidden_size'] = args.hidden_size
 
     dataset_configs = data_utils.text_dataset_configs
     assert args.text_dataset in dataset_configs
