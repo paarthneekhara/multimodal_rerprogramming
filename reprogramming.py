@@ -62,7 +62,7 @@ def get_mapped_logits(logits, class_mapping, multi_label_remapper):
             mapped_logits.append(class_logits)
         return torch.stack(mapped_logits, dim = 1)
     else:
-        orig_prob_scores = nn.Softmax()(logits)
+        orig_prob_scores = nn.Softmax(dim=-1)(logits)
         mapped_logits = multi_label_remapper(orig_prob_scores)
         return mapped_logits
 
@@ -96,7 +96,7 @@ def get_imagenet_label_list(vision_model, base_image, img_size):
 
 
 def evaluate(dataloader, vision_model, reprogrammer, tb_writer, 
-    iter_no, class_mapping, multi_label_remapper, reduced_labels = None, 
+    iter_no, class_mapping, multi_label_remapper, image_net_labels, reduced_labels = None, 
     max_batches = None, 
     img_mean=(0.5, 0.5, 0.5), img_std=(0.5, 0.5, 0.5)):
     
@@ -183,6 +183,7 @@ def main():
     p.add_argument('--pert_alpha', type=float, default = 0.2)
     p.add_argument('--lr', type=float, default = 0.001)
     p.add_argument('--resume_training', type=int, default = 0)
+    p.add_argument('--resume_model_ckpt_path', type=str, default = None)
     p.add_argument('--m_per_class', type=int, default = 10)
     p.add_argument('--pretrained_vm', type=int, default = 1)
     p.add_argument('--max_validation_batches', type=int, default = 100)
@@ -284,7 +285,10 @@ def main():
     prev_best_eval_iter = None
 
     if args.resume_training == 1:
-        resume_model_path = os.path.join(ckptdir, "model.p")
+        if args.resume_model_ckpt_path is None:
+            resume_model_path = os.path.join(ckptdir, "model.p")
+        else:
+            resume_model_path = args.resume_model_ckpt_path
         print("Resuming from ckpt", resume_model_path)
         if not os.path.exists(resume_model_path):
             raise Exception("model not found")
@@ -304,6 +308,7 @@ def main():
     else:
         print("Using Multi Label Remapper!")
         multi_label_remapper = reprogramming_model.MultiLabelRemapper(num_imagenet_labels, n_classes)
+        multi_label_remapper.to(device)
         params = list(reprogrammer.parameters()) + list(multi_label_remapper.parameters())
         optimizer = optim.Adam(params, lr=train_hps['lr'])
 
@@ -332,7 +337,7 @@ def main():
                 print("Evaluating")
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
-                    iter_no, class_mapping, multi_label_remapper, 
+                    iter_no, class_mapping, multi_label_remapper, image_net_labels,
                     args.reduced_labels, 
                     max_batches = args.max_validation_batches, img_mean = img_mean, img_std = img_std)
                 tb_writer.add_scalar('val_acc', metrics['acc'], iter_no)
@@ -355,7 +360,7 @@ def main():
                 reprogrammer, _, _ = load_checkpoint(best_model_path, reprogrammer)
                 metrics = evaluate(val_loader, vision_model, 
                     reprogrammer, tb_writer, 
-                    iter_no, class_mapping, multi_label_remapper, args.reduced_labels, 
+                    iter_no, class_mapping, multi_label_remapper, image_net_labels, args.reduced_labels, 
                     img_mean = img_mean, img_std = img_std)
                 log_fn = os.path.join(logdir, "best_metrics.json")
                 metrics['iter_no'] = best_iter_no

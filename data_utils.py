@@ -37,6 +37,13 @@ text_dataset_configs = {
         'subset' : None,
         'val_split' : 'test'
     },
+    'dbpedia_14' : {
+        'data_files' : None,
+        'sentence_mapping' : 'content',
+        'num_labels' : 14,
+        'subset' : None,
+        'val_split' : 'test'
+    },
     'glue' : {
         'data_files' : None,
         'sentence_mapping' : 'sentence',
