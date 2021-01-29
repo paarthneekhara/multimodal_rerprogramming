@@ -193,9 +193,12 @@ def main():
     p.add_argument('--n_training', type=int, default = None)
     p.add_argument('--use_char_tokenizer', type=int, default = 0)
     p.add_argument('--reduced_labels', type=int, default = None)
+    p.add_argument('--batch_size', type=int, default = 4)
+    p.add_argument('--use_sign_method', type=int, default = 0)
     args = p.parse_args()
 
     train_hps['lr'] = args.lr
+    train_hps['batch_size'] = args.batch_size
     train_hps['label_reduction'] = args.label_reduction
     train_hps['max_iterations'] = args.max_iterations
 
@@ -326,6 +329,11 @@ def main():
             loss_total = loss + args.reg_alpha * reg_loss
             optimizer.zero_grad()
             loss_total.backward()
+            if args.use_sign_method == 1:
+                # print("Using sign method")
+                for param in reprogrammer.parameters():
+                    param.grad = torch.sign(param.grad)
+                # print("gradients updated")
             optimizer.step()
             if iter_no % 10 == 0:
                 print (iter_no, "Loss:", loss.item())
