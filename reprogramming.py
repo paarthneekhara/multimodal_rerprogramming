@@ -19,7 +19,7 @@ train_hps = {
     'lr' : 0.001, # overridden by args
     'batch_size' : 4,
     'validate_every' : 500, # validates on small subset of val set
-    'evaluate_every' : 5000, # evaluates on full test set using best ckpt
+    'evaluate_every' : 10000, # evaluates on full test set using best ckpt
     'label_reduction' : 'max' # overridden by args
 }
 

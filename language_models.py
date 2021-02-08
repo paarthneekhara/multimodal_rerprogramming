@@ -83,43 +83,40 @@ class CnnTextClassifier(nn.Module):
 
         return logits
 
+class EmbeddingClassifier(nn.Module):
+    def __init__(self, vocab_size, embedding_size, hidden_size, target_size):
+        super(EmbeddingClassifier, self).__init__()
 
-# class TransformerModel(nn.Module):
-#     def __init__(self, vocab_size, embedding_size, hidden_size, target_size):
-#         super(TransformerModel, self).__init__()
-#         config = AutoConfig.from_pretrained('bert-base-uncased')
-#         self.hg_transformer = nn.Embedding(vocab_size, embedding_size)
-#         self.lstm = nn.LSTM(embedding_size, hidden_size, batch_first = True)
-#         self.output_layer = nn.Linear(hidden_size, target_size)
+        self.embedding = nn.Embedding(vocab_size, embedding_size)
+
         
+        self.fc = nn.Linear(embedding_size, target_size)
 
-#     def forward(self, sentence_batch, max_sentence_length = None):
-#         # sentence_batch = Variable(sentence_batch)
-#         if max_sentence_length is not None:
-#             sentence_batch = sentence_batch[:,:max_sentence_length]
+    def forward(self, sentence_batch, max_sentence_length = None):
+        #print("Sanity check")
+        if max_sentence_length is not None:
+            sentence_batch = sentence_batch[:,:max_sentence_length]
 
-#         token_embedding = self.embedding(sentence_batch)
-#         lstm_out, _ = self.lstm(token_embedding)
-#         lstm_out = lstm_out.contiguous()
+        token_embedding = self.embedding(sentence_batch)
+        token_embedding_mean = torch.mean(token_embedding, dim=1)
+        #print("token_embedding", token_embedding_mean.size())
+        logits = self.fc(token_embedding_mean)             # [B, class]
 
-#         lstm_out = lstm_out[:,-1,:]
-        
-#         logits = self.output_layer(lstm_out)
-
-#         return logits
+        return logits
 
 def get_model(model_type, vocab_size, embedding_size, hidden_size, target_size, device = 'cuda'):
-    assert model_type in ["uni_rnn", "bi_rnn", "cnn"]
+    assert model_type in ["uni_rnn", "bi_rnn", "cnn", "embedding"]
     if model_type == "uni_rnn":
         model = UniRNN(vocab_size, embedding_size, hidden_size, target_size)
     elif model_type == "bi_rnn":
         model = BiRNN(vocab_size, embedding_size, hidden_size, target_size)
     elif model_type == "cnn":
         model = CnnTextClassifier(vocab_size, embedding_size, hidden_size, target_size)
+    elif model_type == "embedding":
+        model = EmbeddingClassifier(vocab_size, embedding_size, hidden_size, target_size)
     else:
         raise Exception("Not Implemented")
         
     model = model.to(device)
 
     return model
-
