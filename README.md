@@ -42,7 +42,7 @@ Once the model is trained, you may use the ``InferenceNotebook.ipynb`` notebook 
 ## Citing our work
 
 ```
-@inproceedings{hussain2021waveguard,
+@inproceedings{neekhara2022crossmodal,
   title={Cross-modal Adversarial Reprogramming},
   author={Neekhara, Paarth and Hussain, Shehzeen and Du, Jinglong and Dubnov, Shlomo and Koushanfar, Farinaz and McAuley, Julian },
   booktitle={WACV},
