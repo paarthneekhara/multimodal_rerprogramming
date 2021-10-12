@@ -18,9 +18,9 @@ Code for our WACV 2022 paper [Cross-modal Adversarial Reprogramming](https://arx
     3) ``pip install sklearn==0.23.2``
     
 
-Sample Reprogrammer Checkpoint: https://drive.google.com/file/d/1xn3zm0DmNNVPEHb_fFLAWRoMjNpb-nIx/view?usp=sharing
+<!-- Sample Reprogrammer Checkpoint: https://drive.google.com/file/d/1xn3zm0DmNNVPEHb_fFLAWRoMjNpb-nIx/view?usp=sharing
 
-Classification Datasets: https://archive.ics.uci.edu/ml/datasets.php?format=&task=cla&att=&area=&numAtt=&numIns=&type=seq&sort=attTypeUp&view=table
+Classification Datasets: https://archive.ics.uci.edu/ml/datasets.php?format=&task=cla&att=&area=&numAtt=&numIns=&type=seq&sort=attTypeUp&view=table -->
 
 ## Running the Experiments
 
@@ -39,3 +39,13 @@ CUDA_VISIBLE_DEVICES=0 python reprogramming.py --text_dataset TEXTDATSET --logdi
     
 Once the model is trained, you may use the ``InferenceNotebook.ipynb`` notebook to visualize the reprogrammed images etc. Accuracy and other metrics on the test set are logged in tensorboard during training. 
 
+## Citing our work
+
+```
+@inproceedings{hussain2021waveguard,
+  title={Cross-modal Adversarial Reprogramming},
+  author={Neekhara, Paarth and Hussain, Shehzeen and Du, Jinglong and Dubnov, Shlomo and Koushanfar, Farinaz and McAuley, Julian },
+  booktitle={WACV},
+  year={2022}
+}
+```
